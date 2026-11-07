@@ -122,7 +122,8 @@ Page {
             Button {
                 visible: page.valid
                 anchors.horizontalCenter: parent.horizontalCenter
-                preferredWidth: Theme.buttonWidthLarge
+                width: Math.min(Theme.buttonWidthLarge, parent.width)
+                preferredWidth: width
                 text: qsTr("К активной парковке")
                 onClicked: page.activeParkingRequested()
             }

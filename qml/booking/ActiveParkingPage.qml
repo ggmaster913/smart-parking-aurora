@@ -259,7 +259,8 @@ Page {
             Button {
                 visible: page.hasActive && !page.expired && page.extendError === null
                 anchors.horizontalCenter: parent.horizontalCenter
-                preferredWidth: Theme.buttonWidthLarge
+                width: Math.min(Theme.buttonWidthLarge, parent.width)
+                preferredWidth: width
                 text: qsTr("Продлить (демо)")
                 enabled: !page.extending
                 onClicked: page.submitExtend()
@@ -302,7 +303,8 @@ Page {
             Button {
                 visible: page.expired
                 anchors.horizontalCenter: parent.horizontalCenter
-                preferredWidth: Theme.buttonWidthLarge
+                width: Math.min(Theme.buttonWidthLarge, parent.width)
+                preferredWidth: width
                 text: qsTr("Найти парковку")
                 onClicked: page.backRequested()
             }

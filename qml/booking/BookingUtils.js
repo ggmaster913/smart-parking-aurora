@@ -75,8 +75,57 @@ function vehiclePlate(accountService, vehicleId) {
     return vehicleId
 }
 
-// Варианты длительности (минуты), все в пределах 15–1440 и кратны 15.
-var durationOptions = [15, 30, 45, 60, 90, 120, 180, 240, 480, 720, 1440]
+function _validVehicles(vehicles) {
+    var result = []
+    var list = vehicles || []
+    for (var i = 0; i < list.length; ++i) {
+        var item = list[i]
+        if (item && typeof item.id === "string" && item.id.length > 0)
+            result.push(item)
+    }
+    return result
+}
+
+// Индекс машины с данным ID в списке или -1. Пустой ID никогда не найден.
+function vehicleIndex(vehicles, vehicleId) {
+    if (typeof vehicleId !== "string" || vehicleId.length === 0)
+        return -1
+    var list = _validVehicles(vehicles)
+    for (var i = 0; i < list.length; ++i) {
+        if (list[i].id === vehicleId)
+            return i
+    }
+    return -1
+}
+
+// Выбор машины для подтверждения: сохраняет переданный ID, если машина есть в списке;
+// единственную машину выбирает сам; при нескольких или ни одной возвращает "" (выбор за пользователем).
+function chooseVehicleId(vehicles, currentId) {
+    var list = _validVehicles(vehicles)
+    if (vehicleIndex(list, currentId) >= 0)
+        return currentId
+    if (list.length === 1)
+        return list[0].id
+    return ""
+}
+
+var minDurationMinutes = 15
+var maxDurationMinutes = 1440
+var durationStepMinutes = 15
+var defaultDurationMinutes = 60
+
+// Переданная длительность используется, только если она допустима; иначе — 60 минут.
+function normalizeDuration(minutes) {
+    return isValidDuration(minutes) ? minutes : defaultDurationMinutes
+}
+
+// Шаг длительности: ±15 минут с ограничением 15–1440.
+function stepDuration(minutes, steps) {
+    var next = normalizeDuration(minutes) + steps * durationStepMinutes
+    return Math.max(minDurationMinutes, Math.min(maxDurationMinutes, next))
+}
+
+// Варианты продления (минуты), все в пределах 15–1440 и кратны 15.
 var extensionOptions = [15, 30, 60, 120]
 
 function indexOfOption(options, minutes) {
