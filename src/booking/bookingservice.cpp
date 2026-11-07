@@ -63,6 +63,19 @@ QVariantMap idempotencyConflict()
                                       "Повторите действие заново."));
 }
 
+QVariantMap invalidOperationId()
+{
+    return errorResult(QStringLiteral("INVALID_INPUT"),
+                       QStringLiteral("Не удалось подтвердить операцию. Повторите действие."));
+}
+
+QVariantMap amountOutOfRange()
+{
+    return errorResult(QStringLiteral("INVALID_INPUT"),
+                       QStringLiteral("Сумма превышает допустимый предел. "
+                                      "Выберите меньшую длительность."));
+}
+
 bool isValidId(const QString &id)
 {
     return !id.trimmed().isEmpty() && id.size() <= MaxIdLength;
@@ -265,6 +278,11 @@ QVariantMap sessionFromQuery(const QSqlQuery &q)
 
 } // namespace
 
+const int BookingService::MinDurationMinutes;
+const int BookingService::MaxDurationMinutes;
+const int BookingService::DurationStepMinutes;
+const qint64 BookingService::MaxAmountKopecks;
+
 BookingService::BookingService(QSqlDatabase db, SessionContext *context, QObject *parent)
     : QObject(parent)
     , m_db(db)
@@ -298,7 +316,8 @@ qint64 BookingService::priceKopecks(qint64 rateKopecksPerHour, int minutes)
     if (minutes > 0 && rateKopecksPerHour > std::numeric_limits<qint64>::max() / minutes)
         return -1;
     const qint64 product = rateKopecksPerHour * static_cast<qint64>(minutes);
-    return product / 60 + (product % 60 != 0 ? 1 : 0);
+    const qint64 amount = product / 60 + (product % 60 != 0 ? 1 : 0);
+    return amount <= MaxAmountKopecks ? amount : -1;
 }
 
 qint64 BookingService::currentUtc() const
@@ -325,7 +344,7 @@ QVariantMap BookingService::quote(const QString &zoneId, int durationMinutes) co
 
     const qint64 amount = priceKopecks(q.value(0).toLongLong(), durationMinutes);
     if (amount < 0)
-        return storageError();
+        return amountOutOfRange();
 
     QVariantMap data;
     data.insert(QStringLiteral("amountKopecks"), static_cast<qlonglong>(amount));
@@ -338,13 +357,8 @@ QVariantMap BookingService::book(const QString &zoneId, const QString &spaceId,
                                  const QString &vehicleId, int durationMinutes,
                                  const QString &operationId)
 {
-    if (!isValidDuration(durationMinutes))
-        return invalidDuration();
-    if (!isValidId(zoneId) || !isValidId(spaceId) || !isValidId(vehicleId)
-        || !isValidId(operationId)) {
-        return errorResult(QStringLiteral("INVALID_INPUT"),
-                           QStringLiteral("Выберите зону, место и автомобиль."));
-    }
+    if (!isValidId(operationId))
+        return invalidOperationId();
     const QString userId = m_context ? m_context->userId() : QString();
     if (userId.isEmpty())
         return notAuthenticated();
@@ -378,6 +392,15 @@ QVariantMap BookingService::book(const QString &zoneId, const QString &spaceId,
             return result;
         case Lookup::Missing:
             break;
+        }
+
+        // Предметные проверки — после ключа: известный ключ с иными
+        // параметрами, даже неверными, всегда даёт IDEMPOTENCY_CONFLICT.
+        if (!isValidDuration(durationMinutes))
+            return invalidDuration();
+        if (!isValidId(zoneId) || !isValidId(spaceId) || !isValidId(vehicleId)) {
+            return errorResult(QStringLiteral("INVALID_INPUT"),
+                               QStringLiteral("Выберите зону, место и автомобиль."));
         }
 
         switch (userExists(m_db, userId)) {
@@ -442,7 +465,7 @@ QVariantMap BookingService::book(const QString &zoneId, const QString &spaceId,
 
         const qint64 amount = priceKopecks(rate, durationMinutes);
         if (amount < 0)
-            return storageError();
+            return amountOutOfRange();
         const QString sessionId = newId();
         const qint64 expires = now + static_cast<qint64>(durationMinutes) * 60;
         {
@@ -499,11 +522,8 @@ QVariantMap BookingService::book(const QString &zoneId, const QString &spaceId,
 QVariantMap BookingService::extend(const QString &sessionId, int additionalMinutes,
                                    const QString &operationId)
 {
-    if (!isValidDuration(additionalMinutes))
-        return invalidDuration();
-    if (!isValidId(sessionId) || !isValidId(operationId))
-        return errorResult(QStringLiteral("INVALID_INPUT"),
-                           QStringLiteral("Не выбрана парковка для продления."));
+    if (!isValidId(operationId))
+        return invalidOperationId();
     const QString userId = m_context ? m_context->userId() : QString();
     if (userId.isEmpty())
         return notAuthenticated();
@@ -535,6 +555,13 @@ QVariantMap BookingService::extend(const QString &sessionId, int additionalMinut
             setActiveSession(loadActiveSession(userId));
             return result;
         }
+
+        // Предметные проверки — после ключа (см. book).
+        if (!isValidDuration(additionalMinutes))
+            return invalidDuration();
+        if (!isValidId(sessionId))
+            return errorResult(QStringLiteral("INVALID_INPUT"),
+                               QStringLiteral("Не выбрана парковка для продления."));
 
         QVariantMap session;
         qint64 rate = 0;
@@ -572,10 +599,13 @@ QVariantMap BookingService::extend(const QString &sessionId, int additionalMinut
 
         const qint64 charged = priceKopecks(rate, additionalMinutes);
         if (charged < 0)
-            return storageError();
+            return amountOutOfRange();
         const qint64 newExpires = session.value(QStringLiteral("expiresAtUtc")).toLongLong()
                                   + static_cast<qint64>(additionalMinutes) * 60;
-        const qint64 total = session.value(QStringLiteral("amountKopecks")).toLongLong() + charged;
+        const qint64 previous = session.value(QStringLiteral("amountKopecks")).toLongLong();
+        if (previous < 0 || charged > MaxAmountKopecks - previous)
+            return amountOutOfRange();
+        const qint64 total = previous + charged;
         {
             QSqlQuery q(m_db);
             q.prepare(QStringLiteral(

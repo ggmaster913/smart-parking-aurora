@@ -92,6 +92,13 @@ private slots:
     void extendRejectsForeignUnknownAndExpired();
     void extendReusedKeyConflicts();
 
+    void amountAboveLimitIsRejected();
+    void largeAmountSurvivesReplayExactly();
+    void reusedKeyWithInvalidInputConflicts();
+    void extendRollsBackOnStorageError();
+    void extendRetryAfterExpiryReturnsOriginalResponse();
+    void bookExpiredSpaceWithoutRefresh();
+
     void refreshCompletesExpiredAndFreesSpace();
     void restartRestoresActiveSession();
     void userChangeReloadsActiveSession();
@@ -179,6 +186,10 @@ void TstBookingService::price_data()
     QTest::newRow("сутки") << qint64(18000) << 1440 << qint64(432000);
     QTest::newRow("большой тариф без int32") << qint64(5000000000LL) << 1440
                                              << qint64(120000000000LL);
+    QTest::newRow("предел 2^53-1") << qint64(36028797018963964LL) << 15
+                                   << qint64(9007199254740991LL);
+    QTest::newRow("ровно 2^53") << qint64(36028797018963968LL) << 15 << qint64(-1);
+    QTest::newRow("2^53+1 из ревью") << qint64(36028797018963972LL) << 15 << qint64(-1);
     QTest::newRow("отрицательный") << qint64(-1) << 15 << qint64(-1);
     QTest::newRow("переполнение") << qint64(0x7fffffffffffffffLL) << 15 << qint64(-1);
 }
@@ -528,6 +539,115 @@ void TstBookingService::extendReusedKeyConflicts()
              QStringLiteral("IDEMPOTENCY_CONFLICT"));
     QCOMPARE(count(m_db, "SELECT COUNT(*) FROM payment_operations"), 2);
     QCOMPARE(m_service->activeSession().value("expiresAtUtc").toLongLong(), StartUtc + 60 * 60);
+}
+
+void TstBookingService::amountAboveLimitIsRejected()
+{
+    QVERIFY(execOrFail(m_db, "INSERT INTO zones VALUES ('z-huge','Огромная','Адрес 4',"
+                             "55.78,37.64,36028797018963972,'Круглосуточно')"));
+    QVERIFY(execOrFail(m_db, "INSERT INTO spaces VALUES ('h1','z-huge','01',0)"));
+
+    QCOMPARE(m_service->quote("z-huge", 15).value("errorCode").toString(),
+             QStringLiteral("INVALID_INPUT"));
+    const QVariantMap r = m_service->book("z-huge", "h1", "v1", 15, "op-huge");
+    QCOMPARE(r.value("errorCode").toString(), QStringLiteral("INVALID_INPUT"));
+    QVERIFY(dataOf(r).isEmpty());
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM sessions"), 0);
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM payment_operations"), 0);
+}
+
+void TstBookingService::largeAmountSurvivesReplayExactly()
+{
+    // 375299968947541 коп./час × 24 ч = 9007199254740984 ≤ 2^53−1
+    QVERIFY(execOrFail(m_db, "INSERT INTO zones VALUES ('z-big','Дорогая','Адрес 5',"
+                             "55.79,37.65,375299968947541,'Круглосуточно')"));
+    QVERIFY(execOrFail(m_db, "INSERT INTO spaces VALUES ('b1','z-big','01',0)"));
+
+    const QVariantMap first = m_service->book("z-big", "b1", "v1", 1440, "op-big");
+    QVERIFY2(first.value("ok").toBool(), qPrintable(first.value("message").toString()));
+    QCOMPARE(dataOf(first).value("amountKopecks").toLongLong(), 9007199254740984LL);
+    const QVariantMap replay = m_service->book("z-big", "b1", "v1", 1440, "op-big");
+    QCOMPARE(replay, first);
+    QCOMPARE(dataOf(replay).value("amountKopecks").toLongLong(), 9007199254740984LL);
+
+    // продление вывело бы итог за предел — отказ без записи
+    const QString sessionId = dataOf(first).value("id").toString();
+    QCOMPARE(m_service->extend(sessionId, 15, "op-big-ext").value("errorCode").toString(),
+             QStringLiteral("INVALID_INPUT"));
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM payment_operations"), 1);
+    QCOMPARE(m_service->activeSession().value("amountKopecks").toLongLong(),
+             9007199254740984LL);
+}
+
+void TstBookingService::reusedKeyWithInvalidInputConflicts()
+{
+    const QString sessionId = dataOf(bookDefault()).value("id").toString();
+    QVERIFY(m_service->extend(sessionId, 15, "op-ext-1").value("ok").toBool());
+
+    QCOMPARE(m_service->book("z-paid", "s1", "v1", 16, "op-book-1").value("errorCode").toString(),
+             QStringLiteral("IDEMPOTENCY_CONFLICT"));
+    QCOMPARE(m_service->book("", "s1", "v1", 45, "op-book-1").value("errorCode").toString(),
+             QStringLiteral("IDEMPOTENCY_CONFLICT"));
+    QCOMPARE(m_service->extend(sessionId, 16, "op-ext-1").value("errorCode").toString(),
+             QStringLiteral("IDEMPOTENCY_CONFLICT"));
+    QCOMPARE(m_service->extend("", 15, "op-ext-1").value("errorCode").toString(),
+             QStringLiteral("IDEMPOTENCY_CONFLICT"));
+    // новый ключ с неверными данными — по-прежнему INVALID_INPUT
+    QCOMPARE(m_service->book("z-paid", "s1", "v1", 16, "op-new").value("errorCode").toString(),
+             QStringLiteral("INVALID_INPUT"));
+    QCOMPARE(m_service->book("z-paid", "s1", "v1", 45, "").value("errorCode").toString(),
+             QStringLiteral("INVALID_INPUT"));
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM payment_operations"), 2);
+}
+
+void TstBookingService::extendRollsBackOnStorageError()
+{
+    const QString sessionId = dataOf(bookDefault()).value("id").toString();
+    QVERIFY(execOrFail(m_db, "CREATE TEMP TRIGGER fail_payment BEFORE INSERT ON payment_operations "
+                             "BEGIN SELECT RAISE(ABORT, 'test failure'); END"));
+    QSignalSpy spy(m_service, SIGNAL(activeSessionChanged()));
+    QCOMPARE(m_service->extend(sessionId, 15, "op-ext-1").value("errorCode").toString(),
+             QStringLiteral("STORAGE_ERROR"));
+    QCOMPARE(spy.count(), 0);
+    QCOMPARE(m_service->activeSession().value("expiresAtUtc").toLongLong(), StartUtc + 45 * 60);
+    QCOMPARE(count(m_db, "SELECT amount_kopecks FROM sessions"), 13500);
+    QCOMPARE(count(m_db, QString("SELECT expires_at_utc - %1 FROM sessions").arg(StartUtc)),
+             45 * 60);
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM payment_operations"), 1);
+}
+
+void TstBookingService::extendRetryAfterExpiryReturnsOriginalResponse()
+{
+    const QString sessionId = dataOf(bookDefault()).value("id").toString();
+    const QVariantMap first = m_service->extend(sessionId, 15, "op-ext-1");
+    QVERIFY(first.value("ok").toBool());
+
+    m_now = StartUtc + 3 * 3600; // сессия давно истекла
+    QCOMPARE(m_service->extend(sessionId, 15, "op-ext-1"), first);
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM sessions WHERE status='completed'"), 1);
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM payment_operations"), 2);
+    QVERIFY(m_service->activeSession().isEmpty());
+    // новым ключом истёкшую не продлить
+    QCOMPARE(m_service->extend(sessionId, 15, "op-ext-2").value("errorCode").toString(),
+             QStringLiteral("SESSION_EXPIRED"));
+}
+
+void TstBookingService::bookExpiredSpaceWithoutRefresh()
+{
+    QVERIFY(bookDefault().value("ok").toBool());
+    m_now = StartUtc + 45 * 60; // истекла, refresh не вызывался
+    QSqlQuery update(m_db);
+    QVERIFY(update.exec("SELECT COUNT(*) FROM sessions WHERE status='active'"));
+    QVERIFY(update.next());
+    QCOMPARE(update.value(0).toInt(), 1);
+
+    m_context->blockSignals(true); // смена пользователя без автоматического refresh
+    m_context->setUserId(QStringLiteral("u2"));
+    m_context->blockSignals(false);
+    const QVariantMap r = m_service->book("z-paid", "s1", "v2", 15, "op-u2");
+    QVERIFY2(r.value("ok").toBool(), qPrintable(r.value("message").toString()));
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM sessions WHERE status='active'"), 1);
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM sessions WHERE status='completed'"), 1);
 }
 
 void TstBookingService::refreshCompletesExpiredAndFreesSpace()

@@ -36,9 +36,12 @@ public:
     static const int MinDurationMinutes = 15;
     static const int MaxDurationMinutes = 1440;
     static const int DurationStepMinutes = 15;
+    // Предел суммы: 2^53 − 1 коп. — целые точно представимы в JSON (response_json)
+    // и в числе QML, поэтому повтор операции возвращает ту же сумму.
+    static const qint64 MaxAmountKopecks = 9007199254740991LL;
     static bool isValidDuration(int minutes);
     // ceil(rate * minutes / 60) с 64-битным промежуточным произведением.
-    // Возвращает -1 для отрицательного тарифа или переполнения.
+    // Возвращает -1 для отрицательного тарифа, переполнения или суммы выше MaxAmountKopecks.
     static qint64 priceKopecks(qint64 rateKopecksPerHour, int minutes);
 
 signals:
