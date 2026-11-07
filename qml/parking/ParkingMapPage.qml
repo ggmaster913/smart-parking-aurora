@@ -20,6 +20,8 @@ Page {
     property url bookingPageUrl
 
     property var selectedZone: ({})
+    // id объекта карты (MfwMapObject.id) -> id зоны. Маркер своей позиции сюда не входит.
+    property var pinZones: ({})
     property bool hasSelection: selectedZone.id !== undefined
     property string mapError: ""
 
@@ -37,23 +39,6 @@ Page {
         return null;
     }
 
-    // Ближайшая к точке нажатия зона; используется по сигналу mapObjectClicked.
-    function nearestZone(latitude, longitude) {
-        var zones = parkingService.zones;
-        var best = null;
-        var bestDistance = -1;
-        var from = QtPositioning.coordinate(latitude, longitude);
-        for (var i = 0; i < zones.length; ++i) {
-            var d = from.distanceTo(QtPositioning.coordinate(zones[i].latitude, zones[i].longitude));
-            if (best === null || d < bestDistance) {
-                best = zones[i];
-                bestDistance = d;
-            }
-        }
-        // Нажатие дальше ~300 м от любой зоны не считаем выбором маркера.
-        return bestDistance >= 0 && bestDistance <= 300 ? best : null;
-    }
-
     function selectZone(zone) {
         selectedZone = zone ? zone : ({});
     }
@@ -63,13 +48,16 @@ Page {
             return;
         map.clearMapObjects();
         var zones = parkingService.zones;
+        var mapping = {};
         for (var i = 0; i < zones.length; ++i) {
             var pin = pinComponent.createObject(page);
             map.addMapObject(pin);
             pin.locationAnchor = MfwPinMapObject.Bottom;
             pin.source = zones[i].freeSpaces > 0 ? page.iconFree : page.iconFull;
             pin.location = QtPositioning.coordinate(zones[i].latitude, zones[i].longitude);
+            mapping[pin.id] = zones[i].id;
         }
+        pinZones = mapping;
         if (parkingService.hasPosition && positionPin.latitude !== undefined) {
             var me = pinComponent.createObject(page);
             map.addMapObject(me);
@@ -114,6 +102,21 @@ Page {
         onZonesChanged: page.rebuildPins()
     }
 
+    // Доступность мест перечитывается при возврате на страницу и в приложение,
+    // а не только по новым координатам.
+    Connections {
+        target: Qt.application
+        onStateChanged: {
+            if (Qt.application.state === Qt.ApplicationActive)
+                parkingService.refresh();
+        }
+    }
+
+    onStatusChanged: {
+        if (status === PageStatus.Active)
+            parkingService.refresh();
+    }
+
     PageHeader {
         id: header
 
@@ -144,7 +147,13 @@ Page {
             page.backNavigation = !gestureInProgress;
         }
 
-        onMapObjectClicked: page.selectZone(page.nearestZone(coordinate.latitude, coordinate.longitude))
+        // Зона определяется только по id нажатого маркера; нажатие на свою позицию
+        // или неизвестный объект ничего не выбирает.
+        onMapObjectClicked: {
+            var zone = page.pinZones.hasOwnProperty(id) ? page.zoneById(page.pinZones[id]) : null;
+            if (zone)
+                page.selectZone(zone);
+        }
         onError: page.mapError = message
 
         Component.onCompleted: {
@@ -186,7 +195,9 @@ Page {
             margins: Theme.paddingMedium
         }
         spacing: Theme.paddingSmall
-        visible: !parkingService.hasPosition || parkingService.positionIsDemo || page.mapError.length > 0
+        // Не зависит от hasPosition: после потери сигнала координата остаётся,
+        // но пользователь должен видеть, что она устарела.
+        visible: tracker.status !== "ok" || tracker.useDemo || page.mapError.length > 0
 
         Rectangle {
             width: parent.width
@@ -311,5 +322,4 @@ Page {
                                   })
     }
 
-    Component.onCompleted: parkingService.refresh()
 }

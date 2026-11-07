@@ -15,6 +15,11 @@ Page {
     property var tracker: null
     property url bookingPageUrl
 
+    onStatusChanged: {
+        if (status === PageStatus.Active)
+            parkingService.refresh();
+    }
+
     function enableDemo() {
         if (tracker)
             tracker.enableDemo();
@@ -50,7 +55,7 @@ Page {
                              ? (parkingService.positionIsDemo
                                 ? "Ближайшие к демо-местоположению"
                                 : "Ближайшие к вам")
-                             : "Местоположение неизвестно — порядок по названию"
+                             : "Местоположение неизвестно — порядок по идентификатору"
             }
             Label {
                 x: Theme.horizontalPageMargin

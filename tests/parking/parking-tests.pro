@@ -7,8 +7,7 @@ TEMPLATE = app
 TARGET = tst_parking
 CONFIG += console testcase c++11
 CONFIG -= app_bundle
-QT += testlib sql
-QT -= gui
+QT += testlib sql qml quick
 
 PARKING_SRC = $$PWD/../../src/parking
 INCLUDEPATH += $$PARKING_SRC

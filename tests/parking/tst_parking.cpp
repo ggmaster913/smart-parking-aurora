@@ -9,6 +9,9 @@
 #include "parkinggeo.h"
 #include "parkingservice.h"
 
+#include <QQmlComponent>
+#include <QQmlContext>
+#include <QQmlEngine>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -109,6 +112,15 @@ private slots:
     void sqlCharactersInIdAreHarmless();
     void spacesUnknownZoneEmpty();
     void closedDatabaseKeepsLastCatalog();
+    void positionFixRereadsAvailabilityAfterExpiry();
+    void expiryTimerScheduledForNearestSession();
+    void expiryTimerRefreshesCatalog();
+
+    // PositionTracker.qml (реальный QML с реальным ParkingService)
+    void trackerFixThenSignalLost();
+    void trackerFixThenAccessDenied();
+    void trackerFixGoesStale();
+    void trackerDemoNotOverriddenByRealFix();
 
 private:
     void importFixture();
@@ -493,6 +505,163 @@ void ParkingTest::closedDatabaseKeepsLastCatalog()
              .value(QStringLiteral("errorCode")).toString(), QStringLiteral("STORAGE_ERROR"));
 }
 
-QTEST_GUILESS_MAIN(ParkingTest)
+namespace {
+int freeIn(const QVariantList &zones, const char *zoneId)
+{
+    return zoneById(zones, QLatin1String(zoneId)).value(QStringLiteral("freeSpaces")).toInt();
+}
+} // namespace
+
+void ParkingTest::positionFixRereadsAvailabilityAfterExpiry()
+{
+    // Сессия активна: в зоне 3 свободных места из 4 возможных.
+    QVERIFY(exec(m_db, QStringLiteral(
+        "INSERT INTO sessions VALUES ('s1','u1','v1','demo-center-01',%1,%2,18000,4500,"
+        "'active','A123BC')").arg(kNow - 60).arg(kNow + 60)));
+    m_service->refresh();
+    QCOMPARE(freeIn(m_service->zones(), "demo-center"), 3);
+
+    // Сессия истекла, явного refresh() нет, пришёл новый GPS fix.
+    m_service->now = kNow + 61;
+    QVERIFY(m_service->setPosition(55.7521, 37.6177, false).value(QStringLiteral("ok")).toBool());
+    const int listFree = freeIn(m_service->zones(), "demo-center");
+    const int cardFree = m_service->zoneDetails(QStringLiteral("demo-center"))
+            .value(QStringLiteral("data")).toMap().value(QStringLiteral("freeSpaces")).toInt();
+    QCOMPARE(listFree, 4);
+    QCOMPARE(cardFree, listFree);
+}
+
+void ParkingTest::expiryTimerScheduledForNearestSession()
+{
+    QCOMPARE(m_service->nextAvailabilityChangeUtc(), qint64(-1));
+    QCOMPARE(m_service->scheduledRefreshMs(), -1);
+
+    QVERIFY(exec(m_db, QStringLiteral(
+        "INSERT INTO sessions VALUES ('s1','u1','v1','demo-center-01',%1,%2,18000,4500,"
+        "'active','A123BC')").arg(kNow - 60).arg(kNow + 900)));
+    QVERIFY(exec(m_db, QStringLiteral(
+        "INSERT INTO sessions VALUES ('s2','u2','v2','demo-river-01',%1,%2,12000,2000,"
+        "'active','B456CD')").arg(kNow - 60).arg(kNow + 300)));
+    // Завершённая и уже истёкшая сессии не планируют обновление.
+    QVERIFY(exec(m_db, QStringLiteral(
+        "INSERT INTO sessions VALUES ('s3','u3','v3','demo-east-01',%1,%2,9000,2000,"
+        "'completed','C789EF')").arg(kNow - 60).arg(kNow + 10)));
+    QVERIFY(exec(m_db, QStringLiteral(
+        "INSERT INTO sessions VALUES ('s4','u4','v4','demo-east-02',%1,%2,9000,2000,"
+        "'active','D012GH')").arg(kNow - 600).arg(kNow - 5)));
+    m_service->refresh();
+    QCOMPARE(m_service->nextAvailabilityChangeUtc(), kNow + 300);
+    QCOMPARE(m_service->scheduledRefreshMs(), 300 * 1000 + 250);
+}
+
+void ParkingTest::expiryTimerRefreshesCatalog()
+{
+    QVERIFY(exec(m_db, QStringLiteral(
+        "INSERT INTO sessions VALUES ('s1','u1','v1','demo-center-01',%1,%2,18000,4500,"
+        "'active','A123BC')").arg(kNow - 60).arg(kNow + 1)));
+    m_service->refresh();
+    QCOMPARE(freeIn(m_service->zones(), "demo-center"), 3);
+    QSignalSpy spy(m_service, SIGNAL(zonesChanged()));
+
+    // Часы ушли за срок; обновление должно прийти само, без вызова refresh().
+    m_service->now = kNow + 2;
+    QTRY_VERIFY_WITH_TIMEOUT(spy.count() >= 1, 3000);
+    QCOMPARE(freeIn(m_service->zones(), "demo-center"), 4);
+    QCOMPARE(m_service->scheduledRefreshMs(), -1);
+}
+
+namespace {
+QObject *createTracker(QQmlEngine &engine, ParkingService *service)
+{
+    engine.rootContext()->setContextProperty(QStringLiteral("parkingService"), service);
+    QQmlComponent component(&engine, QUrl::fromLocalFile(
+        QStringLiteral(PARKING_SOURCE_ROOT "/qml/parking/PositionTracker.qml")));
+    QObject *tracker = component.create();
+    if (!tracker)
+        qWarning() << component.errors();
+    else
+        tracker->setProperty("active", false); // без реального источника на хосте
+    return tracker;
+}
+
+QString status(QObject *tracker)
+{
+    return tracker->property("status").toString();
+}
+} // namespace
+
+void ParkingTest::trackerFixThenSignalLost()
+{
+    QQmlEngine engine;
+    QScopedPointer<QObject> tracker(createTracker(engine, m_service));
+    QVERIFY(tracker);
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "handleFix",
+                                      Q_ARG(QVariant, 55.7480), Q_ARG(QVariant, 37.6600)));
+    QCOMPARE(status(tracker.data()), QStringLiteral("ok"));
+    QVERIFY(m_service->hasPosition());
+    QVERIFY(!m_service->positionIsDemo());
+
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "markProblem", Q_ARG(QVariant, "unavailable")));
+    QCOMPARE(status(tracker.data()), QStringLiteral("lost"));
+    QVERIFY(tracker->property("statusText").toString().contains(QStringLiteral("последнего известного")));
+    // Координата сохранена — расстояния считаются от неё, но состояние видно.
+    QVERIFY(m_service->hasPosition());
+    QVERIFY(!tracker->property("hasRealFix").toBool());
+
+    // Сигнал вернулся.
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "handleFix",
+                                      Q_ARG(QVariant, 55.7481), Q_ARG(QVariant, 37.6601)));
+    QCOMPARE(status(tracker.data()), QStringLiteral("ok"));
+}
+
+void ParkingTest::trackerFixThenAccessDenied()
+{
+    QQmlEngine engine;
+    QScopedPointer<QObject> tracker(createTracker(engine, m_service));
+    QVERIFY(tracker);
+    // Без fix запрет доступа — обычное «нет доступа».
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "markProblem", Q_ARG(QVariant, "denied")));
+    QCOMPARE(status(tracker.data()), QStringLiteral("denied"));
+    QVERIFY(tracker->property("statusText").toString().contains(QStringLiteral("Нет доступа")));
+
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "handleFix",
+                                      Q_ARG(QVariant, 55.75), Q_ARG(QVariant, 37.61)));
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "markProblem", Q_ARG(QVariant, "denied")));
+    QCOMPARE(status(tracker.data()), QStringLiteral("denied"));
+    QVERIFY(tracker->property("statusText").toString().contains(QStringLiteral("отозван")));
+}
+
+void ParkingTest::trackerFixGoesStale()
+{
+    QQmlEngine engine;
+    QScopedPointer<QObject> tracker(createTracker(engine, m_service));
+    QVERIFY(tracker);
+    tracker->setProperty("staleAfterMs", 100);
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "handleFix",
+                                      Q_ARG(QVariant, 55.75), Q_ARG(QVariant, 37.61)));
+    QCOMPARE(status(tracker.data()), QStringLiteral("ok"));
+    QTRY_COMPARE_WITH_TIMEOUT(status(tracker.data()), QStringLiteral("lost"), 2000);
+}
+
+void ParkingTest::trackerDemoNotOverriddenByRealFix()
+{
+    QQmlEngine engine;
+    QScopedPointer<QObject> tracker(createTracker(engine, m_service));
+    QVERIFY(tracker);
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "enableDemo"));
+    QVERIFY(m_service->positionIsDemo());
+    // Пришла реальная координата — демо-точка в сервисе остаётся.
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "handleFix",
+                                      Q_ARG(QVariant, 55.7405), Q_ARG(QVariant, 37.6290)));
+    QVERIFY(m_service->positionIsDemo());
+    QVERIFY(tracker->property("hasRealFix").toBool());
+    // Явный возврат к реальной позиции.
+    QVERIFY(QMetaObject::invokeMethod(tracker.data(), "useRealPosition"));
+    QVERIFY(!m_service->positionIsDemo());
+    QCOMPARE(m_service->zoneDetails(QStringLiteral("demo-river")).value(QStringLiteral("data"))
+             .toMap().value(QStringLiteral("distanceMeters")).toLongLong(), qint64(0));
+}
+
+QTEST_MAIN(ParkingTest)
 
 #include "tst_parking.moc"

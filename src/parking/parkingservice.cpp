@@ -5,6 +5,7 @@
 
 #include <QDateTime>
 #include <QDebug>
+#include <QtGlobal>
 #include <QSqlError>
 #include <QSqlQuery>
 
@@ -37,7 +38,10 @@ ParkingService::ParkingService(QSqlDatabase database, SessionContext *session, Q
     , m_positionIsDemo(false)
     , m_latitude(0)
     , m_longitude(0)
+    , m_nextChangeUtc(-1)
 {
+    m_expiryTimer.setSingleShot(true);
+    connect(&m_expiryTimer, &QTimer::timeout, this, &ParkingService::refresh);
 }
 
 QVariantList ParkingService::zones() const
@@ -77,6 +81,8 @@ QVariantMap ParkingService::setPosition(double latitude, double longitude, bool 
 
     if (changed) {
         emit positionChanged();
+        // Новая позиция — повод перечитать доступность: сессии могли истечь.
+        reloadFromDatabase();
         rebuildZones();
         emit zonesChanged();
     }
@@ -139,14 +145,55 @@ QVariantList ParkingService::spaces(const QString &zoneId) const
 
 void ParkingService::refresh()
 {
+    if (!reloadFromDatabase())
+        return;
+    rebuildZones();
+    emit zonesChanged();
+}
+
+qint64 ParkingService::nextAvailabilityChangeUtc() const
+{
+    return m_nextChangeUtc;
+}
+
+int ParkingService::scheduledRefreshMs() const
+{
+    return m_expiryTimer.isActive() ? m_expiryTimer.interval() : -1;
+}
+
+bool ParkingService::reloadFromDatabase()
+{
     QVariantList loaded;
     if (!loadZones(QString(), &loaded)) {
         // Оставляем последний успешно прочитанный каталог, ошибку пишем в журнал.
-        return;
+        return false;
     }
     m_baseZones = loaded;
-    rebuildZones();
-    emit zonesChanged();
+    scheduleExpiryRefresh();
+    return true;
+}
+
+void ParkingService::scheduleExpiryRefresh()
+{
+    m_expiryTimer.stop();
+    m_nextChangeUtc = -1;
+
+    const qint64 now = nowUtc();
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("SELECT MIN(expires_at_utc) FROM sessions"
+                                 " WHERE status = 'active' AND expires_at_utc > :now"));
+    query.bindValue(QStringLiteral(":now"), now);
+    if (!query.exec() || !query.next() || query.value(0).isNull()) {
+        if (query.lastError().isValid())
+            qWarning() << "ParkingService: ошибка чтения сроков сессий:" << query.lastError().text();
+        return;
+    }
+
+    m_nextChangeUtc = query.value(0).toLongLong();
+    // Место освобождается, когда expires_at_utc <= now; небольшой запас на округление.
+    const qint64 maxDelayMs = 24LL * 60 * 60 * 1000;
+    const qint64 delayMs = qBound<qint64>(0, (m_nextChangeUtc - now) * 1000 + 250, maxDelayMs);
+    m_expiryTimer.start(static_cast<int>(delayMs));
 }
 
 bool ParkingService::loadZones(const QString &onlyZoneId, QVariantList *out) const

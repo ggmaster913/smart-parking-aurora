@@ -52,6 +52,12 @@ Page {
 
     Component.onCompleted: reload()
 
+    // При возврате на карточку доступность перечитывается из БД.
+    onStatusChanged: {
+        if (status === PageStatus.Active)
+            parkingService.refresh();
+    }
+
     SilicaFlickable {
         anchors.fill: parent
         contentHeight: content.height + Theme.paddingLarge

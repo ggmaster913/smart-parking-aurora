@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QSqlDatabase>
 #include <QString>
+#include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
 
@@ -33,6 +34,11 @@ public:
     Q_INVOKABLE QVariantList spaces(const QString &zoneId) const;
     Q_INVOKABLE void refresh();
 
+    // Для проверок: ближайший срок активной сессии (UTC, сек) или -1
+    // и интервал запланированного обновления каталога (мс) или -1.
+    qint64 nextAvailabilityChangeUtc() const;
+    int scheduledRefreshMs() const;
+
 signals:
     void zonesChanged();
     void positionChanged();
@@ -43,6 +49,8 @@ protected:
 
 private:
     bool loadZones(const QString &onlyZoneId, QVariantList *out) const;
+    bool reloadFromDatabase();
+    void scheduleExpiryRefresh();
     QVariantMap withDistance(const QVariantMap &zone) const;
     void rebuildZones();
 
@@ -54,6 +62,10 @@ private:
     bool m_positionIsDemo;
     double m_latitude;
     double m_longitude;
+    // Обновление каталога в момент истечения ближайшей активной сессии,
+    // чтобы список не показывал устаревшую доступность до явного refresh().
+    QTimer m_expiryTimer;
+    qint64 m_nextChangeUtc;
 };
 
 #endif // PARKINGSERVICE_H
