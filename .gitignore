@@ -12,6 +12,7 @@ CMakeUserPresets.json
 .DS_Store
 Thumbs.db
 .worktrees/
+.agent-local/
 
 # Local data and credentials
 *.sqlite
