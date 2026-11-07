@@ -1,5 +1,8 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
+// Явный импорт своего каталога: в Qt 5.6 singleton AppStyle из qmldir иначе
+// не виден файлам этого же каталога (ReferenceError в эмуляторе, #28).
+import "."
 
 // Сумма в копейках в рублях. Контракт: docs/DESIGN.md, раздел 5.
 Label {
