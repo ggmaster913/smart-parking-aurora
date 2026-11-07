@@ -1,0 +1,35 @@
+# SDK / IDE / build
+build*/
+RPMS/
+SRPMS/
+*.rpm
+*.pro.user*
+CMakeLists.txt.user*
+CMakeUserPresets.json
+.qtcreator/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+.worktrees/
+
+# Local data and credentials
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Installers / temporary files
+*.dmg
+*.exe
+*.run
+*.log
+__pycache__/
