@@ -6,7 +6,7 @@
 
 ## Текущее состояние
 
-Создан репозиторий и зафиксированы требования, контракты и процесс работы. **Приложение ещё не собрано и не запущено.** Первый технический рубеж — импортировать проект из настоящего шаблона SDK и подтвердить запуск в эмуляторе. Наличие документации не означает завершение функционального этапа.
+Создан репозиторий и зафиксированы требования, контракты и процесс работы. **Каркас из шаблона SDK собран (RPM x86_64) и запущен в эмуляторе; прикладные функции ещё не подключены.** Первый технический рубеж — импортировать проект из настоящего шаблона SDK и подтвердить запуск в эмуляторе. Наличие документации не означает завершение функционального этапа.
 
 ## С чего начать участнику
 
@@ -31,11 +31,43 @@
 
 Единый комплект: **Aurora SDK BT 5.2.1.200**, Docker Desktop, эмулятор ОС Аврора соответствующей версии. Установщик выбирается по ОС и архитектуре компьютера. Qt и инструментальную цепочку берём из SDK. Полный Platform SDK для разработки ОС не требуется.
 
-Исходники проекта создаются мастером «Приложение Qt Quick для ОС Аврора». Первый вариант используем с qmake. Точные команды командной строки, идентификатор комплекта сборки и путь к RPM будут добавлены после первой проверенной сборки. Для BT используется `apptool`; команды `sfdk` относятся к другому варианту среды и не служат инструкцией для нашего комплекта.
+Исходники созданы из шаблона мастера «Приложение Qt Quick для ОС Аврора» (`C:\AuroraOS\share\qtcreator	emplates\wizardsurora-qtquick2app`), система сборки qmake. Пакет `ru.iiexperts.SmartParking` (демонстрационный namespace команды, владение доменом не заявляется).
 
-На 7 ноября проверено: у Григория macOS ARM64, 8 ГБ памяти, примерно 77 ГиБ свободного диска. SDK и Docker не обнаружены в PATH и проверенных стандартных каталогах. На остальных компьютерах установка и запуск ещё не подтверждены.
+### Файлы каркаса
 
-Инструкция считается воспроизводимой только после проверки другим участником с чистого клона. Логи, версия SDK, архитектура пакета и снимок эмулятора прикладываются к PR каркаса.
+- `ru.iiexperts.SmartParking.pro`, `ru.iiexperts.SmartParking.desktop`, `rpm/ru.iiexperts.SmartParking.spec`;
+- `src/main.cpp`;
+- `qml/SmartParking.qml` — корневой `ApplicationWindow`, `qml/pages/MainPage.qml`, `qml/pages/AboutPage.qml`, `qml/cover/DefaultCoverPage.qml`, `qml/icons/SmartParking.svg`;
+- `icons/<размер>/ru.iiexperts.SmartParking.png` (86, 108, 128, 172), `translations/*.ts`;
+- `.gitattributes` из шаблона: `eol=lf` для кросс-сборки с Windows.
+
+### Сборка RPM (проверено 8 ноября на Windows 11 x86_64)
+
+Нужны установленный Aurora SDK BT 5.2.1.200 и запущенный Docker Desktop. Мастер установки SDK загружает Docker-образ Build Tools `aurora-build-tools:5.2.1.200` и эмулятор `AuroraOS-5.2.1.200`. Репозиторий должен лежать внутри рабочего пространства SDK (по умолчанию домашний каталог), путь без пробелов и кириллицы.
+
+Из корня репозитория в Git Bash:
+
+```sh
+docker run --rm -v "$(pwd -W)":/sources -w /sources aurora-build-tools:5.2.1.200 apptool build --x64
+```
+
+На macOS/Linux вместо `$(pwd -W)` используется `$PWD`. Результат: подписанный и проверенный пакет `RPMS/ru.iiexperts.SmartParking-0.1-1.x86_64.rpm` (apptool 0.3.16, `apptool validate` — профиль regular, без ошибок). Для устройства собирать с `--arm64`/`--arm32`. Кэш сборки — `.apptool/`, оба каталога в git не попадают.
+
+### Запуск в эмуляторе (проверено 8 ноября)
+
+```sh
+/c/AuroraOS/bin/sfdk.exe emulator start
+K=/c/AuroraOS/vmshare/ssh/private_keys/sdk
+scp -i $K -P 2223 RPMS/ru.iiexperts.SmartParking-0.1-1.x86_64.rpm defaultuser@127.0.0.1:/tmp/
+ssh -i $K -p 2223 defaultuser@127.0.0.1 'gdbus call --system --dest ru.omp.APM --object-path /ru/omp/APM --method ru.omp.APM.Install /tmp/ru.iiexperts.SmartParking-0.1-1.x86_64.rpm "{}"'
+ssh -i $K -p 2223 defaultuser@127.0.0.1 'export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/100000/dbus/user_bus_socket; runtime-manager-tool Control start ru.iiexperts.SmartParking'
+```
+
+`sfdk` здесь используется только для управления эмулятором; сборка — через `apptool`. Прямой `rpm -U` и `pkcon install-local` для прикладного пакета отклоняются валидацией («is not a system package»), устанавливать нужно через APM, как выше, либо из Aurora IDE. Приложение запускается в песочнице firejail. Снимок первого экрана: [docs/screenshots/bootstrap-emulator.png](docs/screenshots/bootstrap-emulator.png).
+
+Если Docker Desktop на Windows падает при старте с ошибкой `dockerInference` или `engine.sock` (Windows не даёт удалить старый AF_UNIX-сокет, ошибка 1920), закройте Docker и переименуйте `%LOCALAPPDATA%\Dockerun` и `%LOCALAPPDATA%\docker-secrets-engine`, затем запустите снова.
+
+На 7 ноября у Григория macOS ARM64, 8 ГБ памяти; SDK там не устанавливался. Сборка и запуск выше подтверждены на Windows-машине Матвея. Инструкция считается воспроизводимой после проверки другим участником с чистого клона.
 
 ## Данные и ограничения прототипа
 

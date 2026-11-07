@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+X-Nemo-Application-Type=silica-qt5
+Icon=ru.iiexperts.SmartParking
+Exec=/usr/bin/ru.iiexperts.SmartParking
+Name=Smart Parking
+Name[ru]=Умная парковка
+
+[X-Application]
+Permissions=
+OrganizationName=ru.iiexperts
+ApplicationName=SmartParking
+ExecDBus=/usr/bin/ru.iiexperts.SmartParking
