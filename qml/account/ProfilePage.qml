@@ -11,6 +11,7 @@ Page {
     property url signInPage: Qt.resolvedUrl("SignInPage.qml")
     property string profileMessage: ""
     property string vehicleMessage: ""
+    property string signOutMessage: ""
 
     signal signedOut()
 
@@ -31,10 +32,20 @@ Page {
     }
 
     function signOut() {
+        signOutMessage = ""
         accountService.signOut()
+        // Вызов синхронный. Если запись не удалась, сервис остаётся во входе и
+        // присылает operationFailed — страницу не покидаем.
+        if (accountService.signedIn)
+            return
         page.signedOut()
         if (signInPage.toString().length > 0)
             pageStack.replace(signInPage)
+    }
+
+    Connections {
+        target: accountService
+        onOperationFailed: page.signOutMessage = "Не удалось выйти: " + message
     }
 
     SilicaFlickable {
@@ -56,6 +67,16 @@ Page {
             PageHeader {
                 title: "Профиль"
                 description: accountService.profile.contact || ""
+            }
+
+            Label {
+                objectName: "signOutError"
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                visible: page.signOutMessage.length > 0
+                wrapMode: Text.Wrap
+                color: Theme.errorColor
+                text: page.signOutMessage
             }
 
             Label {
