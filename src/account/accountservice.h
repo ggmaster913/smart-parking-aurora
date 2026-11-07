@@ -31,6 +31,8 @@ public:
     Q_INVOKABLE QVariantMap demoSignIn(const QString &contact, const QString &code);
     Q_INVOKABLE QVariantMap saveProfile(const QString &displayName);
     Q_INVOKABLE QVariantMap addVehicle(const QString &plate, const QString &brand);
+    // При ошибке записи выход не выполняется: состояние сохраняется,
+    // испускается operationFailed("STORAGE_ERROR", message).
     Q_INVOKABLE void signOut();
     // Восстанавливает активного пользователя из settings.active_user_id.
     Q_INVOKABLE void refresh();
@@ -39,6 +41,8 @@ signals:
     void signedInChanged();
     void profileChanged();
     void vehiclesChanged();
+    // Ошибка команды без возвращаемого Result (сейчас — signOut). Коды по docs/CONTRACTS.md.
+    void operationFailed(const QString &errorCode, const QString &message);
 
 private:
     bool loadUser(const QString &userId, QVariantMap *profile, QVariantList *vehicles) const;

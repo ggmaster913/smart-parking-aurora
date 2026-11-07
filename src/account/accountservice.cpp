@@ -271,8 +271,15 @@ void AccountService::signOut()
     QSqlQuery query(m_database);
     query.prepare(QStringLiteral("DELETE FROM settings WHERE key = ?"));
     query.addBindValue(QString::fromLatin1(kActiveUserKey));
-    if (!query.exec())
+    if (!query.exec()) {
         logQueryError("clear active user", query);
+        // Выход не подтверждён: settings.active_user_id остался, и после перезапуска
+        // вход восстановится. Профиль и SessionContext не трогаем, сообщаем об ошибке.
+        const QVariantMap error = storageError();
+        emit operationFailed(error.value(QStringLiteral("errorCode")).toString(),
+                             error.value(QStringLiteral("message")).toString());
+        return;
+    }
 
     // История и записи пользователя остаются в БД, очищается только видимое состояние.
     applySignedOut();
