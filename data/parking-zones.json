@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "isDemo": true,
+  "zones": [
+    {
+      "id": "demo-center",
+      "name": "Демо-парковка Центр",
+      "address": "Демонстрационный адрес 1",
+      "latitude": 55.7521,
+      "longitude": 37.6177,
+      "rateKopecksPerHour": 18000,
+      "workingHours": "Круглосуточно",
+      "spaces": [
+        {"id": "demo-center-01", "label": "01", "occupied": false},
+        {"id": "demo-center-02", "label": "02", "occupied": true},
+        {"id": "demo-center-03", "label": "03", "occupied": false},
+        {"id": "demo-center-04", "label": "04", "occupied": false},
+        {"id": "demo-center-05", "label": "05", "occupied": true},
+        {"id": "demo-center-06", "label": "06", "occupied": false}
+      ]
+    },
+    {
+      "id": "demo-free-park",
+      "name": "Демо-парковка Бесплатная",
+      "address": "Демонстрационный адрес 2",
+      "latitude": 55.7462,
+      "longitude": 37.5953,
+      "rateKopecksPerHour": 0,
+      "workingHours": "Круглосуточно",
+      "spaces": [
+        {"id": "demo-free-park-01", "label": "01", "occupied": false},
+        {"id": "demo-free-park-02", "label": "02", "occupied": true},
+        {"id": "demo-free-park-03", "label": "03", "occupied": false}
+      ]
+    },
+    {
+      "id": "demo-full",
+      "name": "Демо-парковка Заполненная",
+      "address": "Демонстрационный адрес 3",
+      "latitude": 55.7570,
+      "longitude": 37.6320,
+      "rateKopecksPerHour": 20000,
+      "workingHours": "Круглосуточно",
+      "spaces": [
+        {"id": "demo-full-01", "label": "01", "occupied": true},
+        {"id": "demo-full-02", "label": "02", "occupied": true},
+        {"id": "demo-full-03", "label": "03", "occupied": true},
+        {"id": "demo-full-04", "label": "04", "occupied": true}
+      ]
+    },
+    {
+      "id": "demo-river",
+      "name": "Демо-парковка Набережная",
+      "address": "Демонстрационный адрес 4",
+      "latitude": 55.7405,
+      "longitude": 37.6290,
+      "rateKopecksPerHour": 12000,
+      "workingHours": "Круглосуточно",
+      "spaces": [
+        {"id": "demo-river-01", "label": "A1", "occupied": false},
+        {"id": "demo-river-02", "label": "A2", "occupied": false},
+        {"id": "demo-river-03", "label": "A3", "occupied": true},
+        {"id": "demo-river-04", "label": "B1", "occupied": false},
+        {"id": "demo-river-05", "label": "B2", "occupied": false}
+      ]
+    },
+    {
+      "id": "demo-park-west",
+      "name": "Демо-парковка Запад",
+      "address": "Демонстрационный адрес 5",
+      "latitude": 55.7600,
+      "longitude": 37.5780,
+      "rateKopecksPerHour": 15000,
+      "workingHours": "Круглосуточно",
+      "spaces": [
+        {"id": "demo-park-west-01", "label": "01", "occupied": false},
+        {"id": "demo-park-west-02", "label": "02", "occupied": false},
+        {"id": "demo-park-west-03", "label": "03", "occupied": true},
+        {"id": "demo-park-west-04", "label": "04", "occupied": false}
+      ]
+    },
+    {
+      "id": "demo-east",
+      "name": "Демо-парковка Восток",
+      "address": "Демонстрационный адрес 6",
+      "latitude": 55.7480,
+      "longitude": 37.6620,
+      "rateKopecksPerHour": 9000,
+      "workingHours": "Круглосуточно",
+      "spaces": [
+        {"id": "demo-east-01", "label": "01", "occupied": false},
+        {"id": "demo-east-02", "label": "02", "occupied": false},
+        {"id": "demo-east-03", "label": "03", "occupied": false}
+      ]
+    }
+  ]
+}
