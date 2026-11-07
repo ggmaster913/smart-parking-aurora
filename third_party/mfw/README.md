@@ -5,23 +5,32 @@
 Platform LLC, лицензия BSD-3-Clause). Маршрутизация (MfwOfflineRouting, protobuf)
 и геокодер (MfwOfflineGeocoding) приложению не нужны и не переносятся.
 
-## Статус на 07.11.2026
+## Происхождение файлов (07.11.2026)
 
-- Бинарные файлы **ещё не скопированы**: hub.mos.ru недоступен из облачной среды агента.
-  Их копирует Илья на своём компьютере из клона MapTemplate. Ничего не подменять и не
-  собирать «похожие» файлы.
-- Подключение MFW на SDK BT 5.2.1.200 **не проверено** — сборки и запуска в эмуляторе пока нет.
+Скопированы без изменений из архива ветки `example` MapTemplate (скачан Ильёй с hub.mos.ru;
+README шаблона: «совместим с пятой версией ОС Аврора»). Взят только каталог `MfwMap`:
 
-## Что копировать из MapTemplate
+| Файл | SHA-256 | Тип |
+|---|---|---|
+| `ru.auroraos/qml/x86_64/MfwMap/libMfwMap.so` | `9f7a072a2940314ef0d9ff6a3a0ba29fdbc1b309679b378c1a2973cbf9797d58` | ELF 64-bit x86-64 (эмулятор) |
+| `ru.auroraos/qml/aarch64/MfwMap/libMfwMap.so` | `6fe7eb10960376228eec3432a1d8cea366bed047bafa074925e40b2677de1f7e` | ELF 64-bit ARM aarch64 |
+| `ru.auroraos/qml/armv7hl/MfwMap/libMfwMap.so` | `167b5aa5a4596a51872939596dcd191373d0838087292159066dec88fd2cdb24` | ELF 32-bit ARM EABI5 |
+| `ru.auroraos/qml/<arch>/MfwMap/qmldir` | — | `module MfwMap` / `plugin MfwMap` |
 
-Из `mfw/ru.auroraos/qml/<arch>/MfwMap/` для каждой нужной архитектуры
-(`x86_64` — эмулятор, `aarch64`/`armv7hl` — устройства):
+`LICENSE.BSD-3-Clause.md` и `AUTHORS.md` — из корня MapTemplate. Исходники библиотеки:
+https://gitlab.com/omprussia/libraries/mfw-map (по README шаблона). По символам библиотека
+построена на QMapLibreGL; отдельных уведомлений о лицензиях сторонних компонентов в архиве
+шаблона нет.
 
-```text
-third_party/mfw/ru.auroraos/qml/<arch>/MfwMap/qmldir
-third_party/mfw/ru.auroraos/qml/<arch>/MfwMap/libMfwMap.so
-third_party/mfw/LICENSE.BSD-3-Clause      # текст лицензии из MapTemplate (LICENSE.BSD-3-CLAUSE.md)
-```
+Зависимости `libMfwMap.so` (readelf, одинаковы для трёх архитектур): Qt5Quick, Qt5Positioning,
+Qt5Svg, Qt5Qml, Qt5Sql, Qt5Network, Qt5Gui, Qt5Core, libz, libstdc++. Версия символов Qt — до
+`Qt_5.6`. Spec MapTemplate явных `Requires` на эти пакеты не добавляет.
+
+## Статус
+
+- Подключение MFW **не проверено сборкой**. По решению координатора проба MFW выполняется на
+  уже установленном у Ильи **Aurora SDK 5.2.1.200 MB2**; целевая сборка — BT (#1). Успешная проба
+  MB2 не считается проверкой BT.
 
 ## Подложка и токены
 
@@ -84,13 +93,21 @@ third_party/mfw/LICENSE.BSD-3-Clause      # текст лицензии из Map
    где `parkingService = new ParkingService(db.connection(), sessionContext, app)`.
    После успешной брони/продления вызвать `parkingService->refresh()`.
 
-3. `.desktop`: в `[X-Application] Permissions=` добавить `Location` (геопозиция) и, если ещё
-   нет, `Internet` (загрузка тайлов). Точные имена разрешений сверить с документацией SDK.
+3. `.desktop`: в `[X-Application]` — `Permissions=Internet;Location` (тайлы и геопозиция;
+   имена подтверждены координатором по документации desktop requirements).
 
 4. `rpm/*.spec`: `Requires: qt5-qtdeclarative-import-positioning` (QML-модуль QtPositioning,
    по [документации](https://developer.auroraos.ru/doc/software_development/guides/cpp_api/positioning)).
-   Исключение библиотек MFW из автоматических зависимостей RPM сверить с `rpm/` MapTemplate
-   при первой сборке — не угадывать.
+   Библиотеки в `/usr/share/<имя>` исключаются из автоматических provides/requires так же,
+   как в `rpm/ru.auroraos.MapTemplate.spec`:
+
+   ```spec
+   %global __provides_exclude_from ^%{_datadir}/%{name}.*$
+   %global __requires_exclude_from ^%{_datadir}/%{name}.*$
+   ```
+
+   `.desktop` MapTemplate: `Permissions=Documents;Internet;Location;WebView` — нам из этого
+   нужны только `Internet;Location` (подтверждено координатором в #4).
 
 5. Импорт `data/parking-zones.json` в новую БД: `ParkingCatalog::loadFile()` возвращает
    проверенный список зон с местами или пустой список и русскую ошибку — без частичных
