@@ -1,0 +1,25 @@
+{
+  "comment": "Общие случаи правил подбора (#20) для tst_recommendationrules.cpp и test_rules.py. distance -1 = позиция неизвестна. Ожидается zoneId или null.",
+  "cases": [
+    {"name": "empty", "candidates": [], "nearest": null, "cheapest": null, "balanced": null, "priceOnly": true},
+    {"name": "single", "candidates": [["a", 18000, 300]], "nearest": "a", "cheapest": "a", "balanced": "a", "priceOnly": false},
+    {"name": "no position", "candidates": [["a", 18000, -1], ["b", 9000, -1], ["c", 9000, -1]],
+     "nearest": null, "cheapest": "b", "balanced": "b", "priceOnly": true},
+    {"name": "free zone is cheapest", "candidates": [["paid", 13500, 100], ["free", 0, 900]],
+     "nearest": "paid", "cheapest": "free", "balanced": "free", "priceOnly": false},
+    {"name": "equal values tie by id", "candidates": [["z2", 4500, 200], ["z1", 4500, 200]],
+     "nearest": "z1", "cheapest": "z1", "balanced": "z1", "priceOnly": false},
+    {"name": "nearest tie then price", "candidates": [["a", 9000, 200], ["b", 4500, 200]],
+     "nearest": "b", "cheapest": "b", "balanced": "b", "priceOnly": false},
+    {"name": "cheapest tie then known distance, unknown last", "candidates": [["u", 4500, -1], ["k", 4500, 800], ["n", 4500, 300]],
+     "nearest": "n", "cheapest": "n", "balanced": "n", "priceOnly": false},
+    {"name": "balance trades price for distance", "candidates": [["near", 18000, 100], ["far", 4500, 2000], ["mid", 9000, 500]],
+     "nearest": "near", "cheapest": "far", "balanced": "mid", "priceOnly": false},
+    {"name": "balance ignores zones without position", "candidates": [["nopos", 0, -1], ["a", 18000, 100], ["b", 9000, 1000]],
+     "nearest": "a", "cheapest": "nopos", "balanced": "a", "priceOnly": false},
+    {"name": "same price range zero share", "candidates": [["x", 9000, 700], ["y", 9000, 300]],
+     "nearest": "y", "cheapest": "y", "balanced": "y", "priceOnly": false},
+    {"name": "large amounts near 2^53-1", "candidates": [["big", 9007199254740991, 10], ["small", 9007199254740990, 20]],
+     "nearest": "big", "cheapest": "small", "balanced": "big", "priceOnly": false}
+  ]
+}
