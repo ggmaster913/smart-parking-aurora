@@ -53,7 +53,9 @@ void refresh();
 
 `spaces[]`: `id`, `zoneId`, `label`, `available`. Место недоступно, если занято в мок-данных либо имеет неистёкшую активную сессию. UI передаёт в бронирование `zoneId`, `spaceId`, а не индекс строки.
 
-## BookingService, владелец — Альберт
+## BookingService, владелец — Claude Code Григория (#9)
+
+QML-экраны использует Альберт в #5; C++ и SQL он не меняет.
 
 Свойства с notify: `QVariantMap activeSession`, `QVariantList history`. Пустая map означает отсутствие активной сессии. `history` разрешено оставить пустой до отдельной задачи этапа 4, не выдавая это за реализованную историю.
 
@@ -73,7 +75,7 @@ void refresh();
 
 Одна активная сессия на пользователя и одно занятое сессией место одновременно. Сессия: `id`, `zoneId`, `spaceId`, `vehicleId`, `plate`, `startsAtUtc`, `expiresAtUtc`, `amountKopecks`, `currency`, `status`, `ticketNumber`, `paymentIsDemo=true`. Номер талона — `DEMO-` + ID сессии, без заявления о юридическом платёжном документе.
 
-`operationId` создаётся UI один раз при подтверждении. Повтор с тем же ключом и теми же нормализованными параметрами возвращает ранее сохранённый результат без второй сессии/оплаты. Повтор ключа с другим пользователем, видом операции или параметрами возвращает `IDEMPOTENCY_CONFLICT`, не раскрывает чужие данные. Новый ключ продления добавляет время к сохранённому `expiresAtUtc`, а не к текущему времени. Истёкшую/чужую сессию продлить нельзя. Стоимость продления берётся из сохранённого тарифа сессии, чтобы изменение каталога не изменило договорённость.
+`operationId` создаётся UI один раз при подтверждении. Повтор с тем же ключом и теми же нормализованными параметрами возвращает ранее сохранённый результат без второй сессии/оплаты. Для этого вместе с request_json хранится полный response_json; после последующих продлений старый ответ не пересобирается из текущего состояния сессии. Повтор ключа с другим пользователем, видом операции или параметрами возвращает `IDEMPOTENCY_CONFLICT`, не раскрывает чужие данные. Новый ключ продления добавляет время к сохранённому `expiresAtUtc`, а не к текущему времени. Истёкшую/чужую сессию продлить нельзя. Стоимость продления берётся из сохранённого тарифа сессии, чтобы изменение каталога не изменило договорённость.
 
 Таймер отображает `max(0, expiresAtUtc - nowUtc)`. Пересчитывается после пробуждения приложения и перезапуска. Запуск UI-таймера не создаёт новую сессию. `refresh` переводит истёкшие сессии в `completed`, сохраняет талон и освобождает место.
 
@@ -89,7 +91,7 @@ void refresh();
 | `zones` | `id PK`, `name`, `address`, `latitude`, `longitude`, `rate_kopecks_per_hour >=0`, `working_hours` | Первичный импорт интегратора |
 | `spaces` | `id PK`, `zone_id FK zones`, `label`, `mock_occupied` 0/1, UNIQUE(zone_id,label) | Первичный импорт интегратора |
 | `sessions` | `id PK`, `user_id FK`, `vehicle_id FK`, `space_id FK`, `starts_at_utc`, `expires_at_utc > starts_at_utc`, `rate_kopecks_per_hour`, `amount_kopecks >=0`, `status` active/completed, `plate_snapshot` | BookingService |
-| `payment_operations` | `id PK` = operationId, `user_id FK`, `session_id FK`, `kind` book/extend, `request_json`, `amount_kopecks >=0`, `created_at_utc` | BookingService |
+| `payment_operations` | `id PK` = operationId, `user_id FK`, `session_id FK`, `kind` book/extend, `request_json`, `response_json`, `amount_kopecks >=0`, `created_at_utc` | BookingService |
 
 Нужны уникальные частичные индексы активной сессии по `user_id` и `space_id`. До применения проверить поддержку в SQLite выбранного SDK. Истёкшие сессии завершать в транзакции до вставки/продления. Не удалять/пересеивать пользовательские таблицы при каждом запуске.
 
