@@ -3,12 +3,14 @@ import Sailfish.Silica 1.0
 import "../design"
 import "BookingUtils.js" as Utils
 
-// Активная парковка: обратный отсчёт и продление (#5).
+// Активная парковка: крупный остаток, шкала времени, продление и возврат к зоне (#5, #19).
 // Остаток всегда считается как max(0, expiresAtUtc - nowUtc), таймер только перерисовывает экран.
 Page {
     id: page
 
     signal backRequested()
+    // Открыть карту на зоне сохранённой сессии; обработчик подключает интегратор (#19).
+    signal locateParkingRequested(string zoneId)
 
     readonly property var booking: typeof bookingService !== "undefined" ? bookingService : null
     readonly property var parking: typeof parkingService !== "undefined" ? parkingService : null
@@ -23,6 +25,11 @@ Page {
     property real nowUtc: Utils.nowUtcSeconds()
     readonly property int remaining: hasShown ? Utils.remainingSeconds(shownSession.expiresAtUtc, nowUtc) : 0
     readonly property bool expired: hasShown && (!hasActive || remaining === 0)
+    readonly property bool lowTime: hasShown && !expired && remaining < AppStyle.lowTimeSeconds
+    readonly property color timeColor: expired ? AppStyle.dangerColor : AppStyle.timeStateColor(remaining)
+    readonly property real timeFraction: hasShown && !expired
+                                         ? AppStyle.remainingFraction(shownSession.startsAtUtc, shownSession.expiresAtUtc, nowUtc)
+                                         : 0
 
     property bool expiryRefreshDone: false
 
@@ -151,6 +158,7 @@ Page {
                 onRetryRequested: page.backRequested()
             }
 
+            // Главный блок: статус словами, крупный остаток и шкала. Цвет дублирует подпись.
             Column {
                 visible: page.hasShown
                 width: parent.width
@@ -158,23 +166,40 @@ Page {
 
                 Label {
                     width: parent.width
-                    text: page.expired ? qsTr("Время истекло") : qsTr("Идёт парковка")
-                    color: page.expired ? Theme.secondaryHighlightColor : AppStyle.accentColor
+                    text: page.expired ? qsTr("Время истекло")
+                                       : page.lowTime ? qsTr("Осталось меньше 15 минут") : qsTr("Идёт парковка")
+                    color: page.timeColor
                     font.pixelSize: Theme.fontSizeMedium
-                }
-
-                Label {
-                    text: qsTr("Осталось")
-                    color: Theme.secondaryHighlightColor
-                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.Wrap
                 }
 
                 Label {
                     width: parent.width
                     text: AppStyle.formatRemaining(page.remaining)
-                    color: page.expired ? Theme.secondaryHighlightColor : AppStyle.accentColor
+                    color: page.expired ? Theme.secondaryHighlightColor : page.timeColor
                     font.pixelSize: Theme.fontSizeHuge
                     font.family: Theme.fontFamilyHeading
+                }
+
+                // Шкала оставшегося времени: одна полоса, обновляется тем же секундным таймером.
+                Rectangle {
+                    id: timeTrack
+
+                    width: parent.width
+                    height: Math.max(2, Math.round(Theme.paddingSmall))
+                    radius: height / 2
+                    color: AppStyle.hairlineColor
+
+                    Rectangle {
+                        height: parent.height
+                        radius: parent.radius
+                        width: parent.width * page.timeFraction
+                        color: page.timeColor
+                        Behavior on width {
+                            enabled: AppStyle.motionEnabled
+                            NumberAnimation { duration: AppStyle.motionProgress }
+                        }
+                    }
                 }
 
                 Label {
@@ -199,6 +224,26 @@ Page {
                          + qsTr("место") + " "
                          + Utils.spaceLabel(page.parking, page.shownSession.zoneId, page.shownSession.spaceId)
                        : ""
+            }
+
+            BackgroundItem {
+                id: locateItem
+
+                visible: page.hasShown && !!page.shownSession.zoneId
+                x: -Theme.horizontalPageMargin
+                width: page.width
+                height: Theme.itemSizeSmall
+                onClicked: page.locateParkingRequested(page.shownSession.zoneId)
+
+                Label {
+                    x: Theme.horizontalPageMargin
+                    width: parent.width - 2 * x
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Показать зону на карте")
+                    color: locateItem.highlighted ? Theme.highlightColor : Theme.primaryColor
+                    font.pixelSize: Theme.fontSizeMedium
+                    truncationMode: TruncationMode.Fade
+                }
             }
 
             Column {

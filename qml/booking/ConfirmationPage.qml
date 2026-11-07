@@ -336,11 +336,23 @@ Page {
                 wrapMode: Text.Wrap
             }
 
+            // Невидимый образец: сумма в кнопке, только если подпись помещается целиком.
+            Label {
+                id: payProbe
+                visible: false
+                font.pixelSize: Theme.fontSizeMedium
+                text: page.quoteOk
+                      ? qsTr("Оплатить") + " " + AppStyle.formatKopecks(page.quoteResult.data.amountKopecks) + " " + qsTr("(демо)")
+                      : ""
+            }
+
             Button {
+                id: payButton
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: Math.min(Theme.buttonWidthLarge, parent.width)
                 preferredWidth: width
-                text: qsTr("Оплатить (демо)")
+                text: page.quoteOk && payProbe.implicitWidth + 2 * Theme.paddingLarge <= payButton.width
+                      ? payProbe.text : qsTr("Оплатить (демо)")
                 enabled: page.canSubmit
                 visible: !page.completed && page.bookError === null
                 onClicked: page.submit()
