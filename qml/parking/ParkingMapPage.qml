@@ -467,7 +467,21 @@ Page {
         }
     }
 
+    // Плотная подложка кнопки списка: на светлых тайлах OSM прозрачная кнопка Silica
+    // почти не читалась (снимок e2e-02 в #28). Только оформление.
+    Rectangle {
+        anchors.fill: listButton
+        anchors.margins: -Theme.paddingSmall / 2
+        radius: height / 2
+        color: AppStyle.overlayCardColor
+        border.color: AppStyle.hairlineColor
+        border.width: 1
+        visible: listButton.visible
+    }
+
     Button {
+        id: listButton
+
         anchors {
             horizontalCenter: parent.horizontalCenter
             bottom: parent.bottom
