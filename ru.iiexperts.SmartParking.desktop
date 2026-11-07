@@ -7,7 +7,7 @@ Name=Smart Parking
 Name[ru]=Умная парковка
 
 [X-Application]
-Permissions=
+Permissions=Internet;Location
 OrganizationName=ru.iiexperts
 ApplicationName=SmartParking
 ExecDBus=/usr/bin/ru.iiexperts.SmartParking

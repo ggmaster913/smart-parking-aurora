@@ -44,6 +44,16 @@ Page {
         selectedZone = zone ? zone : ({});
     }
 
+    // Возврат к зоне из активной парковки: только существующий ID каталога, без маршрута.
+    function focusZone(zoneId) {
+        var zone = zoneById(zoneId);
+        if (!zone)
+            return false;
+        selectZone(zone);
+        map.center = QtPositioning.coordinate(zone.latitude, zone.longitude);
+        return true;
+    }
+
     function rebuildPins() {
         if (!map)
             return;
