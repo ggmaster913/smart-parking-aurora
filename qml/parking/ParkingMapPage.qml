@@ -8,6 +8,7 @@ import Sailfish.Silica 1.0
 import QtPositioning 5.2
 import MfwMap 1.0
 import "ParkingFormat.js" as F
+import "../design"
 
 Page {
     id: page
@@ -169,6 +170,8 @@ Page {
 
         // Обязательная атрибуция данных OpenStreetMap.
         Label {
+            id: osmLabel
+
             anchors {
                 right: parent.right
                 bottom: parent.bottom
@@ -280,82 +283,176 @@ Page {
                     text: "Подложка карты недоступна: " + page.mapError
                           + ". Список парковок работает без неё."
                 }
+                // Короткие подписи (DESIGN.md): кнопка не шире панели на узком экране.
                 Button {
                     visible: !tracker.useDemo && tracker.status !== "ok"
-                    text: "Использовать демо-местоположение"
+                    width: Math.min(Theme.buttonWidthLarge, parent.width)
+                    preferredWidth: width
+                    text: "Демо-местоположение"
                     onClicked: tracker.enableDemo()
                 }
                 Button {
                     visible: tracker.useDemo && tracker.hasRealFix
-                    text: "Использовать реальную геопозицию"
+                    width: Math.min(Theme.buttonWidthLarge, parent.width)
+                    preferredWidth: width
+                    text: "Моя геопозиция"
                     onClicked: tracker.useRealPosition()
                 }
             }
         }
     }
 
-    // Карточка выбранной зоны.
+    // Карточка выбранной зоны (#19): название, адрес, крупная цена, места и одно действие.
+    // Только оформление: выбор зоны, переход и данные — прежние.
     Rectangle {
         id: zoneCard
+
+        // Последняя выбранная зона: содержимое не пропадает во время исчезновения карточки.
+        property var zone: ({})
+        readonly property bool shown: page.hasSelection
+        readonly property int free: zone.freeSpaces !== undefined ? zone.freeSpaces : 0
 
         anchors {
             left: parent.left
             right: parent.right
             bottom: parent.bottom
             margins: Theme.paddingMedium
+            // Над атрибуцией OpenStreetMap, чтобы не перекрывать её.
+            bottomMargin: osmLabel.height + 3 * Theme.paddingSmall
         }
-        height: cardColumn.height + 2 * Theme.paddingMedium
-        radius: Theme.paddingSmall
-        color: Theme.rgba(Theme.highlightDimmerColor, 0.95)
-        visible: page.hasSelection
+        height: cardColumn.height + 2 * Theme.paddingLarge
+        radius: Theme.paddingMedium
+        color: AppStyle.overlayCardColor
+        border.color: AppStyle.hairlineColor
+        border.width: 1
+        enabled: shown
+        opacity: shown ? 1 : 0
+        visible: opacity > 0
+
+        transform: Translate {
+            y: zoneCard.shown ? 0 : Theme.paddingLarge * 2
+            Behavior on y { NumberAnimation { duration: AppStyle.motionCard; easing.type: Easing.OutCubic } }
+        }
+        Behavior on opacity { NumberAnimation { duration: AppStyle.motionCard } }
+
+        // Короткий акцент при выборе другой зоны.
+        SequentialAnimation {
+            id: selectAccent
+            NumberAnimation { target: zoneCard; property: "scale"; to: 1.02; duration: AppStyle.motionAccent / 2 }
+            NumberAnimation { target: zoneCard; property: "scale"; to: 1.0; duration: AppStyle.motionAccent / 2 }
+        }
+
+        Connections {
+            target: page
+            onSelectedZoneChanged: {
+                if (!page.hasSelection)
+                    return
+                var changed = zoneCard.zone.id !== page.selectedZone.id
+                zoneCard.zone = page.selectedZone
+                if (changed && AppStyle.motionEnabled && zoneCard.opacity === 1)
+                    selectAccent.restart()
+            }
+        }
 
         Column {
             id: cardColumn
 
-            x: Theme.paddingMedium
-            y: Theme.paddingMedium
-            width: parent.width - 2 * Theme.paddingMedium
+            x: Theme.paddingLarge
+            y: Theme.paddingLarge
+            width: parent.width - 2 * Theme.paddingLarge
             spacing: Theme.paddingSmall
 
-            Label {
+            Item {
                 width: parent.width
-                wrapMode: Text.Wrap
-                color: Theme.highlightColor
-                font.pixelSize: Theme.fontSizeMedium
-                text: page.hasSelection ? page.selectedZone.name : ""
-            }
-            Label {
-                width: parent.width
-                wrapMode: Text.Wrap
-                font.pixelSize: Theme.fontSizeSmall
-                text: page.hasSelection ? page.selectedZone.address : ""
-            }
-            Label {
-                width: parent.width
-                wrapMode: Text.Wrap
-                font.pixelSize: Theme.fontSizeSmall
-                text: page.hasSelection
-                      ? F.rate(page.selectedZone.rateKopecksPerHour) + " · "
-                        + page.selectedZone.workingHours + " · "
-                        + F.freeSpaces(page.selectedZone.freeSpaces, page.selectedZone.capacity)
-                        + (page.selectedZone.distanceMeters >= 0
-                           ? " · " + F.distance(page.selectedZone.distanceMeters) + " по прямой" : "")
-                      : ""
-            }
-            Row {
-                spacing: Theme.paddingMedium
+                height: Math.max(titleColumn.height, closeButton.height)
 
-                Button {
-                    text: "Выбрать место"
-                    onClicked: pageStack.push(Qt.resolvedUrl("ZoneDetailsPage.qml"), {
-                                                  "zoneId": page.selectedZone.id,
-                                                  "bookingPageUrl": page.bookingPageUrl
-                                              })
+                Column {
+                    id: titleColumn
+
+                    width: parent.width - closeButton.width - Theme.paddingSmall
+                    spacing: Theme.paddingSmall / 2
+
+                    Label {
+                        width: parent.width
+                        wrapMode: Text.Wrap
+                        color: Theme.highlightColor
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.family: Theme.fontFamilyHeading
+                        text: zoneCard.zone.name || ""
+                    }
+                    Label {
+                        width: parent.width
+                        wrapMode: Text.Wrap
+                        color: Theme.secondaryHighlightColor
+                        font.pixelSize: Theme.fontSizeSmall
+                        text: zoneCard.zone.address || ""
+                    }
                 }
-                Button {
-                    text: "Закрыть"
+
+                IconButton {
+                    id: closeButton
+
+                    anchors.right: parent.right
+                    icon.source: "image://theme/icon-m-clear"
                     onClicked: page.selectZone(null)
                 }
+            }
+
+            // Главное число — цена; расстояние вторично.
+            Item {
+                width: parent.width
+                height: Math.max(priceLabel.height, distanceLabel.height)
+
+                PriceLabel {
+                    id: priceLabel
+
+                    width: parent.width - distanceLabel.width - Theme.paddingMedium
+                    amountKopecks: zoneCard.zone.rateKopecksPerHour !== undefined ? zoneCard.zone.rateKopecksPerHour : 0
+                    suffix: "/ ч"
+                    font.pixelSize: Theme.fontSizeExtraLarge
+                }
+                Label {
+                    id: distanceLabel
+
+                    anchors {
+                        right: parent.right
+                        baseline: priceLabel.baseline
+                    }
+                    color: Theme.secondaryHighlightColor
+                    font.pixelSize: Theme.fontSizeSmall
+                    text: zoneCard.zone.distanceMeters >= 0
+                          ? AppStyle.formatDistance(zoneCard.zone.distanceMeters) + " по прямой" : ""
+                }
+            }
+
+            // Статус мест: цвет всегда вместе с подписью.
+            Label {
+                width: parent.width
+                wrapMode: Text.Wrap
+                font.pixelSize: Theme.fontSizeMedium
+                color: zoneCard.free > 3 ? AppStyle.accentColor
+                                         : zoneCard.free > 0 ? AppStyle.warningColor : Theme.secondaryColor
+                text: AppStyle.freeSpacesText(zoneCard.free, zoneCard.zone.capacity)
+            }
+            Label {
+                width: parent.width
+                wrapMode: Text.Wrap
+                color: Theme.secondaryHighlightColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                text: zoneCard.zone.workingHours || ""
+            }
+
+            Item { width: 1; height: Theme.paddingSmall }
+
+            Button {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(Theme.buttonWidthLarge, parent.width)
+                preferredWidth: width
+                text: "Выбрать место"
+                onClicked: pageStack.push(Qt.resolvedUrl("ZoneDetailsPage.qml"), {
+                                              "zoneId": page.selectedZone.id,
+                                              "bookingPageUrl": page.bookingPageUrl
+                                          })
             }
         }
     }
@@ -364,7 +461,7 @@ Page {
         anchors {
             horizontalCenter: parent.horizontalCenter
             bottom: parent.bottom
-            bottomMargin: Theme.paddingLarge
+            bottomMargin: osmLabel.height + 3 * Theme.paddingLarge
         }
         visible: !page.hasSelection
         text: "Список парковок (" + parkingService.zones.length + ")"

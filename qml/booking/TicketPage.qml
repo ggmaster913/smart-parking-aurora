@@ -14,6 +14,20 @@ Page {
 
     readonly property var parking: typeof parkingService !== "undefined" ? parkingService : null
     readonly property bool valid: Utils.hasSession(session)
+    property bool entered: false
+
+    // Один короткий вход билета после штатного перехода PageStack (#19), без второй анимации экрана.
+    onStatusChanged: {
+        if (status === PageStatus.Active && !entered) {
+            entered = true
+            if (AppStyle.motionEnabled && valid)
+                ticketEnter.start()
+            else {
+                ticketCard.opacity = 1
+                ticketCard.scale = 1
+            }
+        }
+    }
 
     SilicaFlickable {
         anchors.fill: parent
@@ -41,11 +55,23 @@ Page {
             }
 
             Rectangle {
+                id: ticketCard
+
                 visible: page.valid
                 width: parent.width
                 height: ticket.height + 2 * Theme.paddingLarge
                 radius: Theme.paddingMedium
                 color: AppStyle.cardColor
+                border.color: AppStyle.hairlineColor
+                border.width: 1
+                opacity: AppStyle.motionEnabled ? 0 : 1
+                scale: AppStyle.motionEnabled ? 0.96 : 1
+
+                ParallelAnimation {
+                    id: ticketEnter
+                    NumberAnimation { target: ticketCard; property: "opacity"; to: 1; duration: AppStyle.motionTicket; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: ticketCard; property: "scale"; to: 1; duration: AppStyle.motionTicket; easing.type: Easing.OutCubic }
+                }
 
                 Column {
                     id: ticket
@@ -53,6 +79,15 @@ Page {
                     y: Theme.paddingLarge
                     width: parent.width - 2 * x
                     spacing: Theme.paddingMedium
+
+                    Label {
+                        width: parent.width
+                        text: qsTr("ПАРКОВОЧНЫЙ ТАЛОН · ДЕМО")
+                        color: AppStyle.accentColor
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        font.bold: true
+                        wrapMode: Text.Wrap
+                    }
 
                     Label {
                         width: parent.width
@@ -69,6 +104,21 @@ Page {
                         color: Theme.secondaryHighlightColor
                         font.pixelSize: Theme.fontSizeExtraSmall
                         wrapMode: Text.Wrap
+                    }
+
+                    // Линия отрыва билета: статичные штрихи, без анимации.
+                    Row {
+                        id: perforation
+                        width: parent.width
+                        spacing: Theme.paddingSmall
+                        Repeater {
+                            model: Math.max(0, Math.floor((perforation.width + perforation.spacing) / (Theme.paddingMedium + perforation.spacing)))
+                            Rectangle {
+                                width: Theme.paddingMedium
+                                height: 1
+                                color: AppStyle.hairlineColor
+                            }
+                        }
                     }
 
                     DetailRow {
