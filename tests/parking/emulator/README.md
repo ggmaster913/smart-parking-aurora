@@ -27,3 +27,15 @@
 
 Не проверено в эмуляторе: масштабирование щипком, реальный GPS-fix и его потеря (в эмуляторе
 нет источника; переходы покрыты `tst_parking` на хосте), отказ сети.
+
+## Кнопки масштаба (08.11.2026, 00:50 МСК)
+
+`ParkingMapPage.qml`: кнопки «+/−» меняют свойство `MfwMap.zoomLevel` на целый уровень в границах
+`minimumZoomLevel`/`maximumZoomLevel` ([документация MfwMap](https://developer.auroraos.ru/doc/extended/mfw/mfw_map/all_classes/mfwmap#zoomLevel-prop));
+`setZoomLevel` не слот, поэтому из QML используется запись свойства. Нужны, потому что щипок в
+эмуляторе мышью не воспроизводится.
+
+Проверено: `qmllint` (SDK MB2) — без ошибок; стенд собран из CLI
+`sfdk -c target=AuroraOS-5.2.1.200-x86_64 build`, RPM `ru.auroraos.MapTemplate-0.1-3.x86_64.rpm`
+подписан тестовым ключом SDK (`regular`), `sfdk deploy --sdk` — `Installation successful`.
+**Не проверено:** нажатие кнопок на экране эмулятора (снимка нет), отказ сети.

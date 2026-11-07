@@ -184,6 +184,55 @@ Page {
         }
     }
 
+    // Кнопки масштаба дублируют жест щипка (свойство MfwMap.zoomLevel, границы —
+    // minimumZoomLevel/maximumZoomLevel карты).
+    Column {
+        id: zoomControls
+
+        anchors {
+            right: parent.right
+            verticalCenter: map.verticalCenter
+            rightMargin: Theme.paddingMedium
+        }
+        spacing: Theme.paddingMedium
+        z: 1
+
+        Repeater {
+            model: [
+                { "label": "+", "step": 1, "name": "zoomInButton" },
+                { "label": "−", "step": -1, "name": "zoomOutButton" }
+            ]
+
+            Rectangle {
+                objectName: modelData.name
+                width: Theme.itemSizeSmall
+                height: Theme.itemSizeSmall
+                radius: width / 2
+                color: Theme.rgba(Theme.highlightDimmerColor, 0.9)
+                opacity: zoomArea.enabled ? 1.0 : 0.4
+
+                Label {
+                    anchors.centerIn: parent
+                    text: modelData.label
+                    font.pixelSize: Theme.fontSizeLarge
+                }
+
+                MouseArea {
+                    id: zoomArea
+
+                    anchors.fill: parent
+                    enabled: modelData.step > 0 ? map.zoomLevel < map.maximumZoomLevel
+                                                : map.zoomLevel > map.minimumZoomLevel
+                    onClicked: {
+                        var level = Math.round(map.zoomLevel) + modelData.step;
+                        level = Math.max(map.minimumZoomLevel, Math.min(map.maximumZoomLevel, level));
+                        map.zoomLevel = level;
+                    }
+                }
+            }
+        }
+    }
+
     // Состояние геопозиции и ошибки подложки поверх карты.
     Column {
         id: statusPanel
