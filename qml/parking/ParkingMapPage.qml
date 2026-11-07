@@ -137,6 +137,9 @@ Page {
 
         center: QtPositioning.coordinate(F.demoLatitude, F.demoLongitude)
         zoomLevel: 13.0
+        // Явные границы для кнопок масштаба: растровые тайлы OSM есть до 19 уровня.
+        minimumZoomLevel: 3.0
+        maximumZoomLevel: 19.0
         metersPerPixelTolerance: 0.1
         pixelRatio: Theme.pixelRatio
         cacheDatabaseStoreSettings: true
