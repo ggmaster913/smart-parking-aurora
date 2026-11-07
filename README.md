@@ -17,7 +17,7 @@
 3. Продление на 15 минут, **45 ₽** → перезапуск (вход и сессия сохранились).
 4. «Показать зону на карте» → история **225 ₽** → выход и повторный вход.
 
-Снимки и условия: [tests/app/emulator/README.md](tests/app/emulator/README.md). Финальный RPM и его SHA-256 — в #31 и [чек-листе](docs/submission/SUBMISSION_CHECKLIST.md).
+Снимки и условия: [tests/app/emulator/README.md](tests/app/emulator/README.md). Проверенный RPM: `ru.iiexperts.SmartParking-0.1-5.x86_64.rpm`, SHA-256 `531b574ba2b4d8593fe8fdbddfa288b71003cd9d41ab4f558f00f6875dd815e8` (см. [чек-лист](docs/submission/SUBMISSION_CHECKLIST.md)). Также проверены полностью занятая зона и работа списка без сети и GPS.
 
 Хостовые проверки модулей (Qt 5.15 на macOS, дополнительно к Аврора-сборке): `tests/booking`, `tests/history`, `tests/experience`, `tests/account`, `tests/parking`, `tests/core`. Хостовый запуск не заменяет целевую сборку.
 
