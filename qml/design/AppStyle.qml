@@ -12,6 +12,8 @@ QtObject {
     readonly property color cardColor: Theme.rgba(Theme.highlightBackgroundColor, 0.12)
 
     readonly property string currencySign: "₽"
+    // Наибольшая сумма, точно представимая числом QML/JSON: 2^53 − 1 коп. (контракт #14).
+    readonly property real maxKopecks: 9007199254740991
     readonly property string nbsp: " "
 
     function _isWholeNumber(value) {
@@ -33,8 +35,9 @@ QtObject {
     }
 
     // 13500 -> "135 ₽", 13505 -> "135,05 ₽", 1234567 -> "12 345,67 ₽".
+    // Допустимы только целые 0..2^53−1; дробные, отрицательные, NaN/Infinity и больше предела -> "—".
     function formatKopecks(kopecks) {
-        if (!_isWholeNumber(kopecks) || kopecks < 0)
+        if (!_isWholeNumber(kopecks) || kopecks < 0 || kopecks > maxKopecks)
             return "—"
         var rubles = Math.floor(kopecks / 100)
         var rest = kopecks % 100
