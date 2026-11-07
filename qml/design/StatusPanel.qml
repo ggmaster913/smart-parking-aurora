@@ -14,6 +14,13 @@ Column {
 
     signal retryRequested()
 
+    // Кнопка никогда не шире панели. Если подпись не помещается в стандартную
+    // кнопку, вместо неё показывается полноширинное действие с переносом текста.
+    readonly property bool showRetry: !busy && retryText.length > 0
+    readonly property real retryButtonWidth: Math.min(Theme.buttonWidthLarge, width)
+    readonly property bool retryFitsButton: retryProbe.implicitWidth + 2 * Theme.paddingLarge
+                                            <= retryButtonWidth
+
     width: parent ? parent.width : implicitWidth
     spacing: Theme.paddingMedium
 
@@ -58,10 +65,39 @@ Column {
         wrapMode: Text.Wrap
     }
 
+    // Невидимый образец для измерения подписи; Column не отводит ему места.
+    Label {
+        id: retryProbe
+        visible: false
+        text: panel.retryText
+        font.pixelSize: Theme.fontSizeMedium
+    }
+
     Button {
         anchors.horizontalCenter: parent.horizontalCenter
-        visible: !panel.busy && panel.retryText.length > 0
+        visible: panel.showRetry && panel.retryFitsButton
+        width: panel.retryButtonWidth
+        preferredWidth: panel.retryButtonWidth
         text: panel.retryText
         onClicked: panel.retryRequested()
+    }
+
+    BackgroundItem {
+        id: wideRetry
+        visible: panel.showRetry && !panel.retryFitsButton
+        width: parent.width
+        height: Math.max(Theme.itemSizeSmall, wideRetryLabel.height + 2 * Theme.paddingMedium)
+        onClicked: panel.retryRequested()
+
+        Label {
+            id: wideRetryLabel
+            anchors.centerIn: parent
+            width: parent.width - 2 * Theme.paddingMedium
+            horizontalAlignment: Text.AlignHCenter
+            text: panel.retryText
+            color: wideRetry.highlighted ? Theme.highlightColor : Theme.primaryColor
+            font.pixelSize: Theme.fontSizeMedium
+            wrapMode: Text.Wrap
+        }
     }
 }
