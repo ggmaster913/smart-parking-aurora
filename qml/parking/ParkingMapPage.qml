@@ -138,6 +138,9 @@ Page {
 
         center: QtPositioning.coordinate(F.demoLatitude, F.demoLongitude)
         zoomLevel: 13.0
+        // Явные границы для кнопок масштаба: растровые тайлы OSM есть до 19 уровня.
+        minimumZoomLevel: 3.0
+        maximumZoomLevel: 19.0
         metersPerPixelTolerance: 0.1
         pixelRatio: Theme.pixelRatio
         cacheDatabaseStoreSettings: true
@@ -183,6 +186,55 @@ Page {
                 anchors.margins: -Theme.paddingSmall / 2
                 z: -1
                 color: "#ccffffff"
+            }
+        }
+    }
+
+    // Кнопки масштаба дублируют жест щипка (свойство MfwMap.zoomLevel, границы —
+    // minimumZoomLevel/maximumZoomLevel карты).
+    Column {
+        id: zoomControls
+
+        anchors {
+            right: parent.right
+            verticalCenter: map.verticalCenter
+            rightMargin: Theme.paddingMedium
+        }
+        spacing: Theme.paddingMedium
+        z: 1
+
+        Repeater {
+            model: [
+                { "label": "+", "step": 1, "name": "zoomInButton" },
+                { "label": "−", "step": -1, "name": "zoomOutButton" }
+            ]
+
+            Rectangle {
+                objectName: modelData.name
+                width: Theme.itemSizeSmall
+                height: Theme.itemSizeSmall
+                radius: width / 2
+                color: Theme.rgba(Theme.highlightDimmerColor, 0.9)
+                opacity: zoomArea.enabled ? 1.0 : 0.4
+
+                Label {
+                    anchors.centerIn: parent
+                    text: modelData.label
+                    font.pixelSize: Theme.fontSizeLarge
+                }
+
+                MouseArea {
+                    id: zoomArea
+
+                    anchors.fill: parent
+                    enabled: modelData.step > 0 ? map.zoomLevel < map.maximumZoomLevel
+                                                : map.zoomLevel > map.minimumZoomLevel
+                    onClicked: {
+                        var level = Math.round(map.zoomLevel) + modelData.step;
+                        level = Math.max(map.minimumZoomLevel, Math.min(map.maximumZoomLevel, level));
+                        map.zoomLevel = level;
+                    }
+                }
             }
         }
     }
