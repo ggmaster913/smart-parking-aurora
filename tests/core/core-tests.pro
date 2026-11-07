@@ -1,0 +1,10 @@
+QT += core sql testlib
+QT -= gui
+macx:QMAKE_MACOSX_DEPLOYMENT_TARGET = 11.0
+CONFIG += console testcase c++11
+CONFIG -= app_bundle
+TARGET = core-tests
+INCLUDEPATH += ../../src
+SOURCES += tst_core.cpp ../../src/core/databasemanager.cpp ../../src/core/sessioncontext.cpp
+HEADERS += ../../src/core/databasemanager.h ../../src/core/sessioncontext.h
+RESOURCES += ../../src/core/storage.qrc
