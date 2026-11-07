@@ -20,7 +20,7 @@
 
 `SessionContext` — QObject со свойством `QString userId` только для чтения в QML и сигналом `userChanged()`. Пустая строка означает выход. C++-метод `setUserId(const QString &)` используется AccountService. Сервисы получают `QSqlDatabase` и указатель `SessionContext*` через конструктор, parent — `QObject*`.
 
-## AccountService, владелец — Матвей
+## AccountService, владелец — Илья (продолжает код Матвея)
 
 Свойства с соответствующими notify-сигналами: `bool signedIn`, `QVariantMap profile`, `QVariantList vehicles`.
 
@@ -53,7 +53,7 @@ void refresh();
 
 `spaces[]`: `id`, `zoneId`, `label`, `available`. Место недоступно, если занято в мок-данных либо имеет неистёкшую активную сессию. UI передаёт в бронирование `zoneId`, `spaceId`, а не индекс строки.
 
-## BookingService, владелец — Claude Code Григория (#9)
+## BookingService, владелец — Codex (#9; исходная реализация Claude Григория)
 
 QML-экраны использует Альберт в #5; C++ и SQL он не меняет.
 
