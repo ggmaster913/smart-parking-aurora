@@ -180,21 +180,52 @@ Page {
                 title: qsTr("Подтверждение")
             }
 
-            DetailRow {
-                label: qsTr("Парковка")
-                value: Utils.zoneName(page.parking, page.zoneId)
-                valueSize: Theme.fontSizeLarge
-            }
+            // ---- Где: зона, адрес и место одной карточкой (#19) ----
+            Rectangle {
+                width: parent.width
+                height: whereColumn.height + 2 * Theme.paddingLarge
+                radius: Theme.paddingMedium
+                color: AppStyle.cardColor
+                border.color: AppStyle.hairlineColor
+                border.width: 1
 
-            DetailRow {
-                label: qsTr("Адрес")
-                value: Utils.zoneAddress(page.parking, page.zoneId)
-                valueSize: Theme.fontSizeSmall
-            }
+                Column {
+                    id: whereColumn
 
-            DetailRow {
-                label: qsTr("Место")
-                value: Utils.spaceLabel(page.parking, page.zoneId, page.spaceId)
+                    x: Theme.paddingLarge
+                    y: Theme.paddingLarge
+                    width: parent.width - 2 * x
+                    spacing: Theme.paddingSmall
+
+                    Label {
+                        text: qsTr("Где")
+                        color: Theme.secondaryHighlightColor
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                    }
+                    Label {
+                        width: parent.width
+                        text: Utils.zoneName(page.parking, page.zoneId)
+                        color: Theme.highlightColor
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.family: Theme.fontFamilyHeading
+                        wrapMode: Text.Wrap
+                    }
+                    Label {
+                        width: parent.width
+                        visible: text.length > 0
+                        text: Utils.zoneAddress(page.parking, page.zoneId)
+                        color: Theme.secondaryHighlightColor
+                        font.pixelSize: Theme.fontSizeSmall
+                        wrapMode: Text.Wrap
+                    }
+                    Label {
+                        width: parent.width
+                        text: qsTr("Место") + " " + Utils.spaceLabel(page.parking, page.zoneId, page.spaceId)
+                        color: Theme.highlightColor
+                        font.pixelSize: Theme.fontSizeMedium
+                        wrapMode: Text.Wrap
+                    }
+                }
             }
 
             // ---- Автомобиль ----
@@ -255,7 +286,7 @@ Page {
                 spacing: Theme.paddingSmall
 
                 Label {
-                    text: qsTr("Длительность")
+                    text: qsTr("На сколько")
                     color: Theme.secondaryHighlightColor
                     font.pixelSize: Theme.fontSizeExtraSmall
                 }
@@ -307,7 +338,7 @@ Page {
                 visible: page.quoteOk
 
                 Label {
-                    text: qsTr("К оплате")
+                    text: qsTr("Итого к оплате")
                     color: Theme.secondaryHighlightColor
                     font.pixelSize: Theme.fontSizeSmall
                 }
@@ -317,6 +348,16 @@ Page {
                     amountKopecks: page.quoteOk ? page.quoteResult.data.amountKopecks : 0
                     freeText: ""
                     font.pixelSize: Theme.fontSizeExtraLarge
+                }
+
+                // Краткое резюме выбора под итогом: время и машина.
+                Label {
+                    width: parent.width
+                    text: AppStyle.formatDuration(page.durationMinutes)
+                          + (page.vehicleValid ? " · " + Utils.vehiclePlate(page.account, page.vehicleId) : "")
+                    color: Theme.secondaryHighlightColor
+                    font.pixelSize: Theme.fontSizeSmall
+                    wrapMode: Text.Wrap
                 }
             }
 
