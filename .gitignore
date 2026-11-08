@@ -34,3 +34,4 @@ Thumbs.db
 *.run
 *.log
 __pycache__/
+.apptool/

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: MIT. Иконка «Умной парковки», команда ИИксперты. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="#1f5fd1"/>
+  <path d="M92 196V60h50c28 0 46 17 46 42s-18 42-46 42h-24v52z M118 122h22c13 0 21-8 21-20s-8-20-21-20h-22z"
+        fill="#ffffff" fill-rule="evenodd"/>
+</svg>
