@@ -1,0 +1,21 @@
+{
+  "version": "0.1.6",
+  "tag": "v0.1.6",
+  "sdkVerifiedSourceCommit": "d4eef4221b8a596df526840244c9dd7271c08865",
+  "sdk": "Aurora SDK 5.2.1.200-mb2",
+  "qt": "5.6.3",
+  "target": "x86_64",
+  "rpm": {
+    "filename": "ru.iiexperts.SmartParking-0.1-6.x86_64.rpm",
+    "sha256": "b31093fb9e350217bf6960055586842612cc81e4bf735364a0475fd36e96de0c",
+    "location": "У Ильи; прикрепление артефакта к GitHub Release отдельно"
+  },
+  "mosHub": {
+    "url": "https://hub.mos.ru/event_DIT/2026/iiksperty",
+    "status": "publication deferred by participant; public access not confirmed"
+  },
+  "files": {
+    "SmartParking_ИИксперты.pptx": "68d1fc5c9efe5b435064c48a7f58767fbcc6b63ee5cc2ff680d32d1e450861b8",
+    "SmartParking_ИИксперты.pdf": "bd26445e8325f56d4d907d5ce21c38de129804f1d14c1e7b369d2650d6638ede"
+  }
+}
