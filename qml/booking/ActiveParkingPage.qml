@@ -190,7 +190,8 @@ Page {
                     text: page.expired ? (page.finishedEarly ? qsTr("Парковка завершена досрочно")
                                                              : qsTr("Время истекло"))
                                        : page.lowTime ? qsTr("Осталось меньше 15 минут") : qsTr("Идёт парковка")
-                    color: page.timeColor
+                    // Досрочное завершение — успешное действие пользователя, не ошибка (DESIGN.md, разд. 11).
+                    color: page.finishedEarly ? Theme.secondaryHighlightColor : page.timeColor
                     font.pixelSize: Theme.fontSizeMedium
                     wrapMode: Text.Wrap
                 }
@@ -367,15 +368,28 @@ Page {
                 }
             }
 
-            Button {
+            // Второстепенное действие строкой, как «Показать зону на карте»: основная кнопка
+            // экрана остаётся одна — «Продлить» (ревью Альберта, DESIGN.md).
+            BackgroundItem {
+                id: finishItem
+
                 objectName: "finishEarlyButton"
                 visible: page.hasActive && !page.expired && !page.extending
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.min(Theme.buttonWidthLarge, parent.width)
-                preferredWidth: width
-                text: qsTr("Завершить досрочно")
+                x: -Theme.horizontalPageMargin
+                width: page.width
+                height: Theme.itemSizeSmall
                 // Необратимое действие: стандартная отмена Silica в течение нескольких секунд.
                 onClicked: finishRemorse.execute(qsTr("Завершение парковки"), page.finishEarly)
+
+                Label {
+                    x: Theme.horizontalPageMargin
+                    width: parent.width - 2 * x
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Завершить досрочно")
+                    color: finishItem.highlighted ? Theme.highlightColor : Theme.primaryColor
+                    font.pixelSize: Theme.fontSizeMedium
+                    truncationMode: TruncationMode.Fade
+                }
             }
 
             Label {
