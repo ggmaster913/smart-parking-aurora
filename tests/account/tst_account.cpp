@@ -73,6 +73,9 @@ private slots:
     void danglingActiveUserIsSignedOut();
     void storageErrorIsReported();
     void signOutFailureKeepsSignedIn();
+    void legacyPhoneKeepsProfile_data();
+    void legacyPhoneKeepsProfile();
+    void legacyPhoneCollisionDoesNotMerge();
 
 private:
     QSqlDatabase m_db;
@@ -126,7 +129,12 @@ void TestAccount::contactNormalization_data()
                                << QString(243, QLatin1Char('a')) + "@example.ru";
     QTest::newRow("email 255") << QString(244, QLatin1Char('a')) + "@example.ru" << false << "";
     QTest::newRow("phone plus formatted") << "+7 (999) 123-45-67" << true << "+79991234567";
-    QTest::newRow("phone no plus") << "8 999 123 45 67" << true << "89991234567";
+    // Российские номера без «+» приводятся к +7 и 10 цифрам: так телефон в профиле
+    // выглядит привычно, а «8…», «7…» и «9…» дают одного и того же пользователя.
+    QTest::newRow("phone ru 8 prefix") << "8 999 123 45 67" << true << "+79991234567";
+    QTest::newRow("phone ru 7 prefix") << "7 999 123 45 67" << true << "+79991234567";
+    QTest::newRow("phone ru 10 digits") << "9991234567" << true << "+79991234567";
+    QTest::newRow("phone 11 digits other") << "19991234567" << true << "19991234567";
     QTest::newRow("phone 15 digits") << "123456789012345" << true << "123456789012345";
     QTest::newRow("phone 9 digits") << "123456789" << false << "";
     QTest::newRow("phone 16 digits") << "1234567890123456" << false << "";
@@ -134,6 +142,56 @@ void TestAccount::contactNormalization_data()
     QTest::newRow("phone plus in middle") << "7+9991234567" << false << "";
     QTest::newRow("phone dots") << "999.123.45.67" << false << "";
     QTest::newRow("empty") << "   " << false << "";
+}
+
+void TestAccount::legacyPhoneKeepsProfile_data()
+{
+    QTest::addColumn<QString>("stored");
+    QTest::addColumn<QString>("input");
+    QTest::newRow("ten exact") << "9991234567" << "9991234567";
+    QTest::newRow("seven exact") << "79991234567" << "7 (999) 123-45-67";
+    QTest::newRow("eight exact") << "89991234567" << "8 (999) 123-45-67";
+    QTest::newRow("ten via canonical") << "9991234567" << "+79991234567";
+    QTest::newRow("seven via canonical") << "79991234567" << "+79991234567";
+    QTest::newRow("eight via canonical") << "89991234567" << "+79991234567";
+}
+
+void TestAccount::legacyPhoneKeepsProfile()
+{
+    QFETCH(QString, stored);
+    QFETCH(QString, input);
+    QSqlQuery insert(m_db);
+    insert.prepare("INSERT INTO users VALUES ('legacy-user', ?, 'Legacy')");
+    insert.addBindValue(stored);
+    QVERIFY(insert.exec());
+    QVERIFY(exec(m_db, "INSERT INTO vehicles VALUES ('legacy-car','legacy-user','OLD2026','Demo')"));
+    SessionContext session;
+    AccountService service(m_db, &session);
+    QVERIFY(ok(service.demoSignIn(input, "123456")));
+    QCOMPARE(session.userId(), QStringLiteral("legacy-user"));
+    QCOMPARE(service.vehicles().size(), 1);
+    QCOMPARE(service.profile().value("contact").toString(), QStringLiteral("+79991234567"));
+    QCOMPARE(count(m_db, "SELECT count(*) FROM users"), 1);
+    service.signOut();
+    QVERIFY(ok(service.demoSignIn(input, "123456")));
+    QCOMPARE(session.userId(), QStringLiteral("legacy-user"));
+}
+
+void TestAccount::legacyPhoneCollisionDoesNotMerge()
+{
+    QVERIFY(exec(m_db, "INSERT INTO users VALUES ('old-ten','9991234567','Ten')"));
+    QVERIFY(exec(m_db, "INSERT INTO users VALUES ('old-eight','89991234567','Eight')"));
+    SessionContext session;
+    AccountService service(m_db, &session);
+    QCOMPARE(errorCode(service.demoSignIn("+79991234567", "123456")),
+             QStringLiteral("INVALID_INPUT"));
+    QVERIFY(!service.signedIn());
+    QCOMPARE(count(m_db, "SELECT count(*) FROM users"), 2);
+    QVERIFY(ok(service.demoSignIn("9991234567", "123456")));
+    QCOMPARE(session.userId(), QStringLiteral("old-ten"));
+    service.signOut();
+    QVERIFY(ok(service.demoSignIn("89991234567", "123456")));
+    QCOMPARE(session.userId(), QStringLiteral("old-eight"));
 }
 
 void TestAccount::contactNormalization()

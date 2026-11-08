@@ -30,6 +30,11 @@ public:
                                  const QString &operationId);
     Q_INVOKABLE QVariantMap extend(const QString &sessionId, int additionalMinutes,
                                    const QString &operationId);
+    // Досрочное завершение своей активной сессии: срок = текущий момент, место
+    // освобождается, оплаченная демо-сумма не меняется. Повтор для уже завершённой
+    // своей сессии возвращает её сохранённое состояние (естественная идемпотентность,
+    // без записи в payment_operations — схема не меняется).
+    Q_INVOKABLE QVariantMap finish(const QString &sessionId);
     Q_INVOKABLE void refresh();
 
     // Чистые правила, доступные тестам и другим C++-модулям.

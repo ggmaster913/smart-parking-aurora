@@ -38,6 +38,27 @@ Page {
     property bool extending: false
     property var extendError: null
     property var extendResult: null
+    // Досрочное завершение (BookingService.finish): результат и ошибка.
+    property bool finishedEarly: false
+    property var finishError: null
+
+    function finishEarly() {
+        if (booking === null || !hasActive)
+            return
+        var result = booking.finish(activeSession.id)
+        if (result && result.ok) {
+            finishError = null
+            finishedEarly = true
+            lastSession = result.data
+        } else {
+            finishError = result || { ok: false, errorCode: "STORAGE_ERROR",
+                                      message: qsTr("Не удалось завершить парковку.") }
+        }
+    }
+
+    RemorsePopup {
+        id: finishRemorse
+    }
 
     onActiveSessionChanged: {
         if (hasActive) {
@@ -166,7 +187,8 @@ Page {
 
                 Label {
                     width: parent.width
-                    text: page.expired ? qsTr("Время истекло")
+                    text: page.expired ? (page.finishedEarly ? qsTr("Парковка завершена досрочно")
+                                                             : qsTr("Время истекло"))
                                        : page.lowTime ? qsTr("Осталось меньше 15 минут") : qsTr("Идёт парковка")
                     color: page.timeColor
                     font.pixelSize: Theme.fontSizeMedium
@@ -343,6 +365,34 @@ Page {
                     page.extendError = null
                     page.submitExtend()     // тот же ключ: повтор не спишет дважды
                 }
+            }
+
+            Button {
+                objectName: "finishEarlyButton"
+                visible: page.hasActive && !page.expired && !page.extending
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(Theme.buttonWidthLarge, parent.width)
+                preferredWidth: width
+                text: qsTr("Завершить досрочно")
+                // Необратимое действие: стандартная отмена Silica в течение нескольких секунд.
+                onClicked: finishRemorse.execute(qsTr("Завершение парковки"), page.finishEarly)
+            }
+
+            Label {
+                visible: page.hasActive && !page.expired && !page.extending
+                width: parent.width
+                text: qsTr("Место освободится сразу. Оплаченная демо-сумма не возвращается.")
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                wrapMode: Text.Wrap
+            }
+
+            StatusPanel {
+                visible: page.finishError !== null
+                isError: true
+                title: qsTr("Парковка не завершена")
+                message: page.finishError && page.finishError.message ? page.finishError.message : ""
+                retryText: ""
             }
 
             Button {
