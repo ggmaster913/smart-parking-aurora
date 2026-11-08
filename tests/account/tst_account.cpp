@@ -72,6 +72,7 @@ private slots:
     void signOutClearsVisibleDataOnly();
     void danglingActiveUserIsSignedOut();
     void storageErrorIsReported();
+    void signOutFailureKeepsSignedIn();
 
 private:
     QSqlDatabase m_db;
@@ -430,6 +431,53 @@ void TestAccount::storageErrorIsReported()
     QVERIFY(!service.signedIn());
     QCOMPARE(count(m_db, QStringLiteral("SELECT count(*) FROM users WHERE contact = 'new@b.ru'")),
              0);
+}
+
+// Регрессия ревью PR16: при ошибке удаления settings.active_user_id выход не должен
+// объявляться успешным, иначе после перезапуска вход «возвращается».
+void TestAccount::signOutFailureKeepsSignedIn()
+{
+    SessionContext session;
+    AccountService service(m_db, &session);
+    QVERIFY(ok(service.demoSignIn(QStringLiteral("a@b.ru"), QStringLiteral("123456"))));
+    QVERIFY(ok(service.addVehicle(QStringLiteral("A123BC77"), QStringLiteral("Lada"))));
+    const QString userId = session.userId();
+    QVERIFY(!userId.isEmpty());
+
+    QSignalSpy signedInSpy(&service, SIGNAL(signedInChanged()));
+    QSignalSpy failedSpy(&service, SIGNAL(operationFailed(QString,QString)));
+
+    // Запись в БД запрещена: DELETE завершается ошибкой.
+    QVERIFY(exec(m_db, QStringLiteral("PRAGMA query_only = ON")));
+    service.signOut();
+
+    QVERIFY(service.signedIn());
+    QCOMPARE(session.userId(), userId);
+    QVERIFY(!service.profile().isEmpty());
+    QCOMPARE(service.vehicles().size(), 1);
+    QCOMPARE(signedInSpy.count(), 0);
+    QVERIFY(failedSpy.isValid());
+    QCOMPARE(failedSpy.count(), 1);
+    QCOMPARE(failedSpy.first().at(0).toString(), QStringLiteral("STORAGE_ERROR"));
+    QVERIFY(!failedSpy.first().at(1).toString().isEmpty());
+    QCOMPARE(count(m_db, QStringLiteral("SELECT count(*) FROM settings")), 1);
+    {
+        // Состояние интерфейса совпадает с тем, что восстановится после перезапуска.
+        AccountService afterRestart(m_db, nullptr);
+        QVERIFY(afterRestart.signedIn());
+    }
+
+    // После снятия запрета повторный выход проходит и не возвращается после перезапуска.
+    QVERIFY(exec(m_db, QStringLiteral("PRAGMA query_only = OFF")));
+    service.signOut();
+    QVERIFY(!service.signedIn());
+    QVERIFY(session.userId().isEmpty());
+    QCOMPARE(signedInSpy.count(), 1);
+    QCOMPARE(failedSpy.count(), 1);
+    QCOMPARE(count(m_db, QStringLiteral("SELECT count(*) FROM settings")), 0);
+
+    AccountService afterSignOut(m_db, nullptr);
+    QVERIFY(!afterSignOut.signedIn());
 }
 
 QTEST_GUILESS_MAIN(TestAccount)

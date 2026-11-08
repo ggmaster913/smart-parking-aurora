@@ -10,8 +10,51 @@ QtObject {
     readonly property color accentBase: "#1E9BB0"
     readonly property color accentColor: Theme.highlightFromColor(accentBase, Theme.colorScheme)
     readonly property color cardColor: Theme.rgba(Theme.highlightBackgroundColor, 0.12)
+    // Плотная подложка панелей поверх карты: читаемость текста над тайлами.
+    readonly property color overlayCardColor: Theme.rgba(Theme.highlightDimmerColor, 0.94)
+    readonly property color hairlineColor: Theme.rgba(Theme.primaryColor, 0.2)
+
+    // Статусы времени (#19): янтарный — мало времени, красный — истекло/ошибка.
+    // Цвет всегда дублируется подписью.
+    readonly property color warningBase: "#E0A030"
+    readonly property color warningColor: Theme.highlightFromColor(warningBase, Theme.colorScheme)
+    readonly property color dangerColor: Theme.errorColor
+    // Порог «мало времени» для активной парковки, секунды.
+    readonly property int lowTimeSeconds: 15 * 60
+
+    // Движение (#19). Значения — проектные, не норматив SDK. Выключатель без экрана настроек.
+    property bool motionEnabled: true
+    readonly property int motionAccent: motionEnabled ? 150 : 0   // акцент выбора зоны/места
+    readonly property int motionCard: motionEnabled ? 200 : 0     // нижняя карточка: opacity + сдвиг
+    readonly property int motionTicket: motionEnabled ? 220 : 0   // вход талона
+    readonly property int motionProgress: motionEnabled ? 250 : 0 // шкала времени между секундами
+
+    // Доля оставшегося времени 0..1 для шкалы; без корректного интервала — 0.
+    function remainingFraction(startsAtUtc, expiresAtUtc, nowUtc) {
+        if (!_isWholeNumber(startsAtUtc) || !_isWholeNumber(expiresAtUtc) || expiresAtUtc <= startsAtUtc)
+            return 0
+        var left = Math.max(0, expiresAtUtc - nowUtc)
+        return Math.min(1, left / (expiresAtUtc - startsAtUtc))
+    }
+
+    // Цвет состояния времени: акцент, янтарный при остатке < lowTimeSeconds, красный при 0.
+    function timeStateColor(remainingSeconds) {
+        if (!(remainingSeconds > 0))
+            return dangerColor
+        return remainingSeconds < lowTimeSeconds ? warningColor : accentColor
+    }
+
+    function formatDistance(meters) {
+        if (typeof meters !== "number" || !isFinite(meters) || meters < 0)
+            return ""
+        if (Math.round(meters) < 1000)
+            return Math.round(meters) + nbsp + qsTr("м")
+        return (Math.round(meters / 100) / 10).toString().replace(".", ",") + nbsp + qsTr("км")
+    }
 
     readonly property string currencySign: "₽"
+    // Наибольшая сумма, точно представимая числом QML/JSON: 2^53 − 1 коп. (контракт #14).
+    readonly property real maxKopecks: 9007199254740991
     readonly property string nbsp: " "
 
     function _isWholeNumber(value) {
@@ -33,8 +76,9 @@ QtObject {
     }
 
     // 13500 -> "135 ₽", 13505 -> "135,05 ₽", 1234567 -> "12 345,67 ₽".
+    // Допустимы только целые 0..2^53−1; дробные, отрицательные, NaN/Infinity и больше предела -> "—".
     function formatKopecks(kopecks) {
-        if (!_isWholeNumber(kopecks) || kopecks < 0)
+        if (!_isWholeNumber(kopecks) || kopecks < 0 || kopecks > maxKopecks)
             return "—"
         var rubles = Math.floor(kopecks / 100)
         var rest = kopecks % 100

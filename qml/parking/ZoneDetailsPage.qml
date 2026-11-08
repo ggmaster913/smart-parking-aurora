@@ -5,6 +5,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import "ParkingFormat.js" as F
+import "../design"
 
 Page {
     id: page
@@ -154,16 +155,26 @@ Page {
                         onClicked: {
                             page.selectedSpaceId = modelData.id;
                             page.selectedSpaceLabel = modelData.label;
+                            // Оформление (#19): один короткий акцент выбранной ячейки.
+                            if (AppStyle.motionEnabled)
+                                cellAccent.restart();
+                        }
+
+                        SequentialAnimation {
+                            id: cellAccent
+                            NumberAnimation { target: cell; property: "scale"; to: 1.06; duration: AppStyle.motionAccent / 2 }
+                            NumberAnimation { target: cell; property: "scale"; to: 1.0; duration: AppStyle.motionAccent / 2 }
                         }
 
                         Rectangle {
+                            readonly property bool selected: page.selectedSpaceId === modelData.id
+
                             anchors.fill: parent
                             radius: Theme.paddingSmall
-                            color: "transparent"
-                            border.width: 2
+                            color: selected ? AppStyle.cardColor : "transparent"
+                            border.width: selected ? 3 : 2
                             border.color: modelData.available
-                                          ? (page.selectedSpaceId === modelData.id
-                                             ? Theme.highlightColor : Theme.primaryColor)
+                                          ? (selected ? AppStyle.accentColor : Theme.primaryColor)
                                           : Theme.secondaryColor
                             opacity: modelData.available ? 1.0 : 0.4
                         }
