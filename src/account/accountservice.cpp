@@ -139,10 +139,27 @@ QVariantMap AccountService::demoSignIn(const QString &contact, const QString &co
     if (!transaction.started())
         return storageError();
 
+    // Preserve identifiers created before Russian phones were canonicalized to +7.
+    // An exact historical input wins; distinct existing profiles are never merged.
+    QString legacyContact = normalizedContact;
+    if (!contact.contains(QLatin1Char('@'))) {
+        legacyContact.clear();
+        const QString trimmed = contact.trimmed();
+        for (int i = 0; i < trimmed.size(); ++i) {
+            const QChar c = trimmed.at(i);
+            if (!c.isSpace() && c != QLatin1Char('(') && c != QLatin1Char(')')
+                    && c != QLatin1Char('-'))
+                legacyContact.append(c);
+        }
+    }
+
     QString userId;
     QSqlQuery query(m_database);
-    query.prepare(QStringLiteral("SELECT id FROM users WHERE contact = ?"));
+    query.prepare(QStringLiteral("SELECT id FROM users WHERE contact IN (?, ?) "
+                                 "ORDER BY CASE WHEN contact = ? THEN 0 ELSE 1 END LIMIT 1"));
+    query.addBindValue(legacyContact);
     query.addBindValue(normalizedContact);
+    query.addBindValue(legacyContact);
     if (!query.exec()) {
         logQueryError("select user", query);
         return storageError();
@@ -150,6 +167,27 @@ QVariantMap AccountService::demoSignIn(const QString &contact, const QString &co
     if (query.next())
         userId = query.value(0).toString();
     query.finish();
+
+    if (userId.isEmpty() && normalizedContact.startsWith(QStringLiteral("+7"))
+            && normalizedContact.size() == 12) {
+        const QString national = normalizedContact.mid(2);
+        QSqlQuery legacy(m_database);
+        legacy.prepare(QStringLiteral("SELECT id FROM users WHERE contact IN (?, ?, ?)"));
+        legacy.addBindValue(national);
+        legacy.addBindValue(QStringLiteral("7") + national);
+        legacy.addBindValue(QStringLiteral("8") + national);
+        if (!legacy.exec()) {
+            logQueryError("select legacy phone", legacy);
+            return storageError();
+        }
+        if (legacy.next()) {
+            userId = legacy.value(0).toString();
+            if (legacy.next())
+                return invalidInput(QStringLiteral(
+                    "Сохранено несколько демо-профилей этого номера. "
+                    "Введите номер в исходном формате, использованном при регистрации."));
+        }
+    }
 
     if (userId.isEmpty()) {
         userId = newId();
@@ -329,7 +367,10 @@ bool AccountService::loadUser(const QString &userId, QVariantMap *loadedProfile,
 
     QVariantMap profile;
     profile.insert(QStringLiteral("id"), user.value(0).toString());
-    profile.insert(QStringLiteral("contact"), user.value(1).toString());
+    QString displayedContact;
+    if (!AccountValidation::normalizeContact(user.value(1).toString(), &displayedContact))
+        displayedContact = user.value(1).toString();
+    profile.insert(QStringLiteral("contact"), displayedContact);
     profile.insert(QStringLiteral("displayName"), user.value(2).toString());
     user.finish();
 
