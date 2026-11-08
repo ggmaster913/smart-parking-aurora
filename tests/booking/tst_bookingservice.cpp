@@ -103,6 +103,10 @@ private slots:
     void restartRestoresActiveSession();
     void userChangeReloadsActiveSession();
 
+    void finishEndsActiveSessionEarly();
+    void finishIsIdempotentAndChecksOwner();
+    void finishInSameSecondKeepsValidInterval();
+
 private:
     QVariantMap bookDefault(const QString &op = QStringLiteral("op-book-1"));
 
@@ -713,6 +717,62 @@ void TstBookingService::userChangeReloadsActiveSession()
     QVERIFY(m_service->activeSession().isEmpty());
     m_context->setUserId(QStringLiteral("u1"));
     QCOMPARE(m_service->activeSession().value("vehicleId").toString(), QStringLiteral("v1"));
+}
+
+// Досрочное завершение: срок = момент завершения, место освобождается, оплаченная
+// демо-сумма не меняется (возврата нет).
+void TstBookingService::finishEndsActiveSessionEarly()
+{
+    const QString sessionId = dataOf(bookDefault()).value("id").toString();
+    QSignalSpy activeSpy(m_service, SIGNAL(activeSessionChanged()));
+
+    m_now = StartUtc + 10 * 60;
+    const QVariantMap r = m_service->finish(sessionId);
+    QVERIFY2(r.value("ok").toBool(), qPrintable(r.value("message").toString()));
+    QCOMPARE(dataOf(r).value("status").toString(), QStringLiteral("completed"));
+    QCOMPARE(dataOf(r).value("expiresAtUtc").toLongLong(), StartUtc + 10 * 60);
+    QCOMPARE(dataOf(r).value("amountKopecks").toLongLong(), qint64(13500));
+    QVERIFY(m_service->activeSession().isEmpty());
+    QCOMPARE(activeSpy.count(), 1);
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM sessions WHERE status='active'"), 0);
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM payment_operations"), 1);
+
+    // Место снова свободно: можно забронировать новую парковку.
+    QVERIFY(m_service->book("z-paid", "s1", "v1", 15, "op-book-2").value("ok").toBool());
+}
+
+void TstBookingService::finishIsIdempotentAndChecksOwner()
+{
+    QCOMPARE(m_service->finish("нет-сессии").value("errorCode").toString(),
+             QStringLiteral("NOT_FOUND"));
+    const QString sessionId = dataOf(bookDefault()).value("id").toString();
+
+    m_context->setUserId(QStringLiteral("u2"));
+    const QVariantMap foreign = m_service->finish(sessionId);
+    QCOMPARE(foreign.value("errorCode").toString(), QStringLiteral("NOT_OWNER"));
+    QCOMPARE(count(m_db, "SELECT COUNT(*) FROM sessions WHERE status='active'"), 1);
+
+    m_context->setUserId(QString());
+    QCOMPARE(m_service->finish(sessionId).value("errorCode").toString(),
+             QStringLiteral("NOT_AUTHENTICATED"));
+
+    m_context->setUserId(QStringLiteral("u1"));
+    m_now = StartUtc + 5 * 60;
+    const QVariantMap first = m_service->finish(sessionId);
+    QVERIFY(first.value("ok").toBool());
+    m_now = StartUtc + 20 * 60;
+    const QVariantMap second = m_service->finish(sessionId);
+    QVERIFY(second.value("ok").toBool());
+    QCOMPARE(dataOf(second).value("expiresAtUtc").toLongLong(), StartUtc + 5 * 60);
+    QCOMPARE(dataOf(second).value("amountKopecks").toLongLong(), qint64(13500));
+}
+
+void TstBookingService::finishInSameSecondKeepsValidInterval()
+{
+    const QString sessionId = dataOf(bookDefault()).value("id").toString();
+    const QVariantMap r = m_service->finish(sessionId); // m_now == начало сессии
+    QVERIFY2(r.value("ok").toBool(), qPrintable(r.value("message").toString()));
+    QCOMPARE(dataOf(r).value("expiresAtUtc").toLongLong(), StartUtc + 1);
 }
 
 QTEST_GUILESS_MAIN(TstBookingService)

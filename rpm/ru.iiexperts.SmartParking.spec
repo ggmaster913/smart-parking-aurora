@@ -6,7 +6,7 @@
 Name:       ru.iiexperts.SmartParking
 Summary:    Умная парковка: поиск и оплата парковки (демо)
 Version:    0.1
-Release:    8
+Release:    9
 License:    MIT
 URL:        https://auroraos.ru
 Source0:    %{name}-%{version}.tar.bz2
