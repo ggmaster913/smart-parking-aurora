@@ -126,7 +126,12 @@ void TestAccount::contactNormalization_data()
                                << QString(243, QLatin1Char('a')) + "@example.ru";
     QTest::newRow("email 255") << QString(244, QLatin1Char('a')) + "@example.ru" << false << "";
     QTest::newRow("phone plus formatted") << "+7 (999) 123-45-67" << true << "+79991234567";
-    QTest::newRow("phone no plus") << "8 999 123 45 67" << true << "89991234567";
+    // Российские номера без «+» приводятся к +7 и 10 цифрам: так телефон в профиле
+    // выглядит привычно, а «8…», «7…» и «9…» дают одного и того же пользователя.
+    QTest::newRow("phone ru 8 prefix") << "8 999 123 45 67" << true << "+79991234567";
+    QTest::newRow("phone ru 7 prefix") << "7 999 123 45 67" << true << "+79991234567";
+    QTest::newRow("phone ru 10 digits") << "9991234567" << true << "+79991234567";
+    QTest::newRow("phone 11 digits other") << "19991234567" << true << "19991234567";
     QTest::newRow("phone 15 digits") << "123456789012345" << true << "123456789012345";
     QTest::newRow("phone 9 digits") << "123456789" << false << "";
     QTest::newRow("phone 16 digits") << "1234567890123456" << false << "";
