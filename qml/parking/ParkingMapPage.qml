@@ -23,6 +23,10 @@ Page {
     property var selectedZone: ({})
     // id объекта карты (MfwMapObject.id) -> id зоны. Маркер своей позиции сюда не входит.
     property var pinZones: ({})
+    // id зоны -> её маркер и текущий значок; маркер своей позиции — отдельно.
+    property var zonePins: ({})
+    property var pinIcons: ({})
+    property var mePin: null
     property bool hasSelection: selectedZone.id !== undefined
     property string mapError: ""
 
@@ -54,27 +58,38 @@ Page {
         return true;
     }
 
+    // Маркеры создаются один раз на зону и затем только обновляются. Пересоздание при
+    // каждом zonesChanged меняло MfwMapObject.id, и mapObjectClicked приходил с id,
+    // которого уже нет в pinZones: нажатие на маркер ничего не выбирало.
     function rebuildPins() {
         if (!map)
             return;
-        map.clearMapObjects();
         var zones = parkingService.zones;
-        var mapping = {};
         for (var i = 0; i < zones.length; ++i) {
-            var pin = pinComponent.createObject(page);
-            map.addMapObject(pin);
-            pin.locationAnchor = MfwPinMapObject.Bottom;
-            pin.source = zones[i].freeSpaces > 0 ? page.iconFree : page.iconFull;
-            pin.location = QtPositioning.coordinate(zones[i].latitude, zones[i].longitude);
-            mapping[pin.id] = zones[i].id;
+            var zone = zones[i];
+            var icon = zone.freeSpaces > 0 ? page.iconFree : page.iconFull;
+            var pin = zonePins[zone.id];
+            if (!pin) {
+                pin = pinComponent.createObject(page);
+                map.addMapObject(pin);
+                pin.locationAnchor = MfwPinMapObject.Bottom;
+                pin.location = QtPositioning.coordinate(zone.latitude, zone.longitude);
+                zonePins[zone.id] = pin;
+                pinZones[pin.id] = zone.id;
+            }
+            if (pinIcons[zone.id] !== icon) {
+                pin.source = icon;
+                pinIcons[zone.id] = icon;
+            }
         }
-        pinZones = mapping;
         if (parkingService.hasPosition && positionPin.latitude !== undefined) {
-            var me = pinComponent.createObject(page);
-            map.addMapObject(me);
-            me.locationAnchor = MfwPinMapObject.Center;
-            me.source = parkingService.positionIsDemo ? page.iconDemo : page.iconMe;
-            me.location = QtPositioning.coordinate(positionPin.latitude, positionPin.longitude);
+            if (!mePin) {
+                mePin = pinComponent.createObject(page);
+                map.addMapObject(mePin);
+                mePin.locationAnchor = MfwPinMapObject.Center;
+            }
+            mePin.source = parkingService.positionIsDemo ? page.iconDemo : page.iconMe;
+            mePin.location = QtPositioning.coordinate(positionPin.latitude, positionPin.longitude);
         }
         if (hasSelection) {
             var fresh = zoneById(selectedZone.id);

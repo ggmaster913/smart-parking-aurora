@@ -641,6 +641,66 @@ QVariantMap BookingService::extend(const QString &sessionId, int additionalMinut
     return result;
 }
 
+QVariantMap BookingService::finish(const QString &sessionId)
+{
+    const QString userId = m_context ? m_context->userId() : QString();
+    if (userId.isEmpty())
+        return notAuthenticated();
+    if (!isValidId(sessionId))
+        return errorResult(QStringLiteral("INVALID_INPUT"),
+                           QStringLiteral("Не выбрана парковка для завершения."));
+
+    const qint64 now = currentUtc();
+    QVariantMap session;
+    {
+        Transaction tx(m_db);
+        if (!tx.isOpen())
+            return storageError();
+        if (!completeExpired(now))
+            return storageError();
+
+        {
+            QSqlQuery q(m_db);
+            q.prepare(QString::fromLatin1(SessionSelect) + QStringLiteral("WHERE s.id = ?"));
+            q.addBindValue(sessionId);
+            if (!q.exec()) {
+                logSqlError("finish select", q);
+                return storageError();
+            }
+            if (!q.next())
+                return errorResult(QStringLiteral("NOT_FOUND"),
+                                   QStringLiteral("Парковка не найдена."));
+            if (q.value(9).toString() != userId)
+                return errorResult(QStringLiteral("NOT_OWNER"),
+                                   QStringLiteral("Завершить можно только свою парковку."));
+            session = sessionFromQuery(q);
+        }
+
+        if (session.value(QStringLiteral("status")).toString() == QLatin1String("active")) {
+            // CHECK схемы: expires_at_utc > starts_at_utc, поэтому не раньше начала + 1 с.
+            const qint64 startsAt = session.value(QStringLiteral("startsAtUtc")).toLongLong();
+            const qint64 finishedAt = qMax(now, startsAt + 1);
+            QSqlQuery q(m_db);
+            q.prepare(QStringLiteral(
+                "UPDATE sessions SET status = 'completed', expires_at_utc = ? "
+                "WHERE id = ? AND user_id = ? AND status = 'active'"));
+            q.addBindValue(static_cast<qlonglong>(finishedAt));
+            q.addBindValue(sessionId);
+            q.addBindValue(userId);
+            if (!q.exec() || q.numRowsAffected() != 1) {
+                logSqlError("finish update", q);
+                return storageError();
+            }
+            session.insert(QStringLiteral("status"), QStringLiteral("completed"));
+            session.insert(QStringLiteral("expiresAtUtc"), static_cast<qlonglong>(finishedAt));
+        }
+        if (!tx.commit())
+            return storageError();
+    }
+    setActiveSession(loadActiveSession(userId));
+    return okResult(session);
+}
+
 void BookingService::refresh()
 {
     const qint64 now = currentUtc();

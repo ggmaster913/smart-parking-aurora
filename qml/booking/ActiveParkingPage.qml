@@ -38,6 +38,27 @@ Page {
     property bool extending: false
     property var extendError: null
     property var extendResult: null
+    // Досрочное завершение (BookingService.finish): результат и ошибка.
+    property bool finishedEarly: false
+    property var finishError: null
+
+    function finishEarly() {
+        if (booking === null || !hasActive)
+            return
+        var result = booking.finish(activeSession.id)
+        if (result && result.ok) {
+            finishError = null
+            finishedEarly = true
+            lastSession = result.data
+        } else {
+            finishError = result || { ok: false, errorCode: "STORAGE_ERROR",
+                                      message: qsTr("Не удалось завершить парковку.") }
+        }
+    }
+
+    RemorsePopup {
+        id: finishRemorse
+    }
 
     onActiveSessionChanged: {
         if (hasActive) {
@@ -166,9 +187,11 @@ Page {
 
                 Label {
                     width: parent.width
-                    text: page.expired ? qsTr("Время истекло")
+                    text: page.expired ? (page.finishedEarly ? qsTr("Парковка завершена досрочно")
+                                                             : qsTr("Время истекло"))
                                        : page.lowTime ? qsTr("Осталось меньше 15 минут") : qsTr("Идёт парковка")
-                    color: page.timeColor
+                    // Досрочное завершение — успешное действие пользователя, не ошибка (DESIGN.md, разд. 11).
+                    color: page.finishedEarly ? Theme.secondaryHighlightColor : page.timeColor
                     font.pixelSize: Theme.fontSizeMedium
                     wrapMode: Text.Wrap
                 }
@@ -343,6 +366,47 @@ Page {
                     page.extendError = null
                     page.submitExtend()     // тот же ключ: повтор не спишет дважды
                 }
+            }
+
+            // Второстепенное действие строкой, как «Показать зону на карте»: основная кнопка
+            // экрана остаётся одна — «Продлить» (ревью Альберта, DESIGN.md).
+            BackgroundItem {
+                id: finishItem
+
+                objectName: "finishEarlyButton"
+                visible: page.hasActive && !page.expired && !page.extending
+                x: -Theme.horizontalPageMargin
+                width: page.width
+                height: Theme.itemSizeSmall
+                // Необратимое действие: стандартная отмена Silica в течение нескольких секунд.
+                onClicked: finishRemorse.execute(qsTr("Завершение парковки"), page.finishEarly)
+
+                Label {
+                    x: Theme.horizontalPageMargin
+                    width: parent.width - 2 * x
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Завершить досрочно")
+                    color: finishItem.highlighted ? Theme.highlightColor : Theme.primaryColor
+                    font.pixelSize: Theme.fontSizeMedium
+                    truncationMode: TruncationMode.Fade
+                }
+            }
+
+            Label {
+                visible: page.hasActive && !page.expired && !page.extending
+                width: parent.width
+                text: qsTr("Место освободится сразу. Оплаченная демо-сумма не возвращается.")
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                wrapMode: Text.Wrap
+            }
+
+            StatusPanel {
+                visible: page.finishError !== null
+                isError: true
+                title: qsTr("Парковка не завершена")
+                message: page.finishError && page.finishError.message ? page.finishError.message : ""
+                retryText: ""
             }
 
             Button {
