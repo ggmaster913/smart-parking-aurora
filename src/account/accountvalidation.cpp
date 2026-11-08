@@ -66,6 +66,18 @@ bool normalizePhone(const QString &input, QString *normalized)
         if (!isAsciiDigit(digits.at(i)))
             return false;
     }
+    if (!hasPlus) {
+        // Российский номер без «+»: 10 цифр (999…) или 11 цифр с 8/7 в начале -> +7XXXXXXXXXX.
+        if (digits.size() == 10) {
+            *normalized = QStringLiteral("+7") + digits;
+            return true;
+        }
+        if (digits.size() == 11
+                && (digits.at(0) == QLatin1Char('8') || digits.at(0) == QLatin1Char('7'))) {
+            *normalized = QStringLiteral("+7") + digits.mid(1);
+            return true;
+        }
+    }
     *normalized = hasPlus ? QLatin1Char('+') + digits : digits;
     return true;
 }
