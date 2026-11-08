@@ -10,7 +10,7 @@
 | Базовый файл | [BASE_INFO.md](../../BASE_INFO.md) | ✓ |
 | Лицензия | [LICENSE](../../LICENSE), MIT; лицензии MFW и атрибуция OSM сохранены | ✓ |
 | Презентация PPTX | [deliverables/SmartParking_ИИксперты.pptx](../../deliverables/SmartParking_ИИксперты.pptx), 6 слайдов по шаблону финалиста | ✓ |
-| Презентация PDF | [deliverables/SmartParking_ИИксперты.pdf](../../deliverables/SmartParking_ИИксперты.pdf) | ◐ |
+| Презентация PDF | [deliverables/SmartParking_ИИксперты.pdf](../../deliverables/SmartParking_ИИксперты.pdf), 6 страниц, экспорт PowerPoint (Илья, PR #35) из PPTX SHA-256 `68d1fc5c…61b8`; PDF SHA-256 `bd26445e8325f56d4d907d5ce21c38de129804f1d14c1e7b369d2650d6638ede`; все страницы просмотрены | ✓ |
 | Сценарий выступления, 5 мин | [deliverables/DEMO_SCRIPT.md](../../deliverables/DEMO_SCRIPT.md) | ✓ |
 | Проверенный RPM | `ru.iiexperts.SmartParking-0.1-5.x86_64.rpm`, SHA-256 `531b574ba2b4d8593fe8fdbddfa288b71003cd9d41ab4f558f00f6875dd815e8`; исходник — дерево `60af75d` + `Release: 5`, ветка `feat/app-integration-ilya` @ `bb70db5` (PR #29) | ✓ |
 | Снимки сквозного сценария | `tests/app/emulator/` (e2e-01…18; e2e-06/07/09 — до исправления PriceLabel, не показывать) | ✓ |
