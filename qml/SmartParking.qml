@@ -60,10 +60,8 @@ ApplicationWindow {
 
     Connections {
         target: appStartup
-        onStateChanged: {
-            if (appStartup.ready)
-                app.showStart()
-        }
+        // This signal is emitted only after all service context properties exist.
+        onServicesReady: app.showStart()
     }
 
     // Единый маршрутизатор сигналов текущей страницы.

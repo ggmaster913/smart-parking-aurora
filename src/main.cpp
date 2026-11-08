@@ -32,6 +32,8 @@ public:
     bool ready() const { return m_ready; }
     QString errorText() const { return m_errorText; }
 
+    void servicesCreated() { emit servicesReady(); }
+
     bool initialize()
     {
         QString error;
@@ -56,6 +58,7 @@ public:
 signals:
     void stateChanged();
     void retrySucceeded();
+    void servicesReady();
 
 private:
     DatabaseManager *m_database;
@@ -109,6 +112,7 @@ int main(int argc, char *argv[])
         context->setContextProperty(QStringLiteral("parkingService"), parkingService.data());
         context->setContextProperty(QStringLiteral("bookingService"), bookingService.data());
         context->setContextProperty(QStringLiteral("historyService"), historyService.data());
+        startup.servicesCreated();
     };
 
     if (startup.ready())
