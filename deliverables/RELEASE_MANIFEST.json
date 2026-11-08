@@ -1,21 +1,13 @@
 {
-  "version": "0.1.6",
-  "tag": "v0.1.6",
-  "sdkVerifiedSourceCommit": "d4eef4221b8a596df526840244c9dd7271c08865",
-  "sdk": "Aurora SDK 5.2.1.200-mb2",
-  "qt": "5.6.3",
-  "target": "x86_64",
-  "rpm": {
-    "filename": "ru.iiexperts.SmartParking-0.1-6.x86_64.rpm",
-    "sha256": "b31093fb9e350217bf6960055586842612cc81e4bf735364a0475fd36e96de0c",
-    "location": "У Ильи; прикрепление артефакта к GitHub Release отдельно"
+  "version": "0.1-10",
+  "status": "prerelease; exact SDK verification and RPM pending",
+  "runtimeSourceCommit": "a01c5c88aa36b84f6219c42d1625bb0d8a234730",
+  "testedBase": {
+    "commit": "4629aa78b9fa07a9ba1907deb8c7ce17feb93c0d",
+    "rpm": "0.1-9",
+    "sha256": "5cf26d9b3b02ed231503973d88ea65f55447c052c9f71837d8cc4519f7ece37c"
   },
-  "mosHub": {
-    "url": "https://hub.mos.ru/event_DIT/2026/iiksperty",
-    "status": "publication deferred by participant; public access not confirmed"
-  },
-  "files": {
-    "SmartParking_ИИксперты.pptx": "68d1fc5c9efe5b435064c48a7f58767fbcc6b63ee5cc2ff680d32d1e450861b8",
-    "SmartParking_ИИксперты.pdf": "bd26445e8325f56d4d907d5ce21c38de129804f1d14c1e7b369d2650d6638ede"
-  }
+  "hostAccountTests": "43 passed,0failed",
+  "independentReview": "no P0/P1 after legacy phone compatibility fix",
+  "expectedRpm": "ru.iiexperts.SmartParking-0.1-10.x86_64.rpm"
 }
